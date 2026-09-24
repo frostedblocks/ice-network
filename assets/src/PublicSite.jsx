@@ -96,6 +96,30 @@ function formatTime(ts) {
   }
 }
 
+function photoIdKey(id) {
+  if (id == null) return "";
+  if (typeof id === "bigint") return id.toString();
+  return String(id);
+}
+
+function normalizePublicPhoto(p, siteCanisterId) {
+  if (!p) return null;
+  const id = p.id;
+  let url = p.url || "";
+  const path = p.path || `/photos/${photoIdKey(id)}`;
+  if (!url && siteCanisterId) {
+    url = `https://${siteCanisterId}.raw.icp0.io${path.startsWith("/") ? path : `/${path}`}`;
+  }
+  return { id, url, path, contentType: p.contentType || "image/webp" };
+}
+
+function unwrapOptText(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) return v[0] ? String(v[0]) : "";
+  return String(v);
+}
+
 /**
  * Public read-only personal website viewer.
  * URL: #/site/<canisterId>[/<pageId>] or ?site=<id>&page=<page>
@@ -115,6 +139,8 @@ export default function PublicSite({
   const [domain, setDomain] = useState(null);
   const [linked, setLinked] = useState(true);
   const [posts, setPosts] = useState([]);
+  const [photos, setPhotos] = useState([]);
+  const [bannerUrl, setBannerUrl] = useState("");
   const [activePageId, setActivePageId] = useState(initialPage || "profile");
   const [copied, setCopied] = useState(false);
 
@@ -129,7 +155,7 @@ export default function PublicSite({
     try {
       const site = await createAnonymousUserSiteActor(siteId);
 
-      const [prof, pageList, featurePairs, settingPairs, linkedNet, domainSt, feed] =
+      const [prof, pageList, featurePairs, settingPairs, linkedNet, domainSt, feed, photoList, banner] =
         await Promise.all([
           site.getProfile().catch(() => null),
           site.listPages().catch(() => []),
@@ -138,9 +164,16 @@ export default function PublicSite({
           site.isLinkedToNetwork ? site.isLinkedToNetwork().catch(() => true) : true,
           site.getDomainStatus ? site.getDomainStatus().catch(() => null) : null,
           site.getLocalFeed ? site.getLocalFeed(30).catch(() => []) : [],
+          site.listPhotos ? site.listPhotos().catch(() => []) : [],
+          site.getBannerURL ? site.getBannerURL().catch(() => "") : "",
         ]);
 
       setProfile(prof);
+      const normalizedPhotos = (Array.isArray(photoList) ? photoList : [])
+        .map((ph) => normalizePublicPhoto(ph, siteId))
+        .filter((ph) => ph && ph.url);
+      setPhotos(normalizedPhotos);
+      setBannerUrl(typeof banner === "string" ? banner : "");
       const plist = Array.isArray(pageList) ? pageList : [];
       // Sort: profile first, then alpha
       plist.sort((a, b) => {
@@ -369,6 +402,49 @@ export default function PublicSite({
           </p>
         </section>
 
+        {bannerUrl ? (
+          <div className="ice-glass-soft" style={styles.bannerWrap}>
+            <img
+              src={bannerUrl}
+              alt=""
+              style={styles.bannerImg}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          </div>
+        ) : null}
+
+        {photos.length > 0 && (
+          <section className="ice-section" style={{ marginTop: "1rem" }}>
+            <div className="ice-section-title">Photos</div>
+            <p style={styles.publicNote}>
+              Public gallery — these images are open on the internet via the site canister.
+            </p>
+            <div style={styles.photoGrid}>
+              {photos.map((ph) => (
+                <a
+                  key={photoIdKey(ph.id)}
+                  href={ph.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={styles.photoCell}
+                >
+                  <img
+                    src={ph.url}
+                    alt={`Photo ${photoIdKey(ph.id)}`}
+                    style={styles.photoImg}
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.style.opacity = "0.25";
+                    }}
+                  />
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Page nav */}
         {pages.length > 0 && (
           <nav className="ice-tabs" style={{ marginTop: "1rem" }} aria-label="Site pages">
@@ -413,7 +489,19 @@ export default function PublicSite({
                   <p style={{ margin: 0, whiteSpace: "pre-wrap", color: "#e2e8f0", lineHeight: 1.55 }}>
                     {p.content}
                   </p>
+                  {unwrapOptText(p.imageURL) ? (
+                    <img
+                      src={unwrapOptText(p.imageURL)}
+                      alt=""
+                      style={styles.postImg}
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  ) : null}
                 </article>
+
               ))
             )}
           </section>
@@ -482,6 +570,50 @@ const styles = {
     objectFit: "cover",
     border: "1px solid rgba(148,163,184,0.25)",
     flexShrink: 0,
+  },
+  bannerWrap: {
+    marginTop: "0.85rem",
+    overflow: "hidden",
+    borderRadius: 14,
+    padding: 0,
+  },
+  bannerImg: {
+    display: "block",
+    width: "100%",
+    maxHeight: 220,
+    objectFit: "cover",
+  },
+  publicNote: {
+    margin: "0 0 0.65rem",
+    fontSize: "0.75rem",
+    color: "#94a3b8",
+    lineHeight: 1.45,
+  },
+  photoGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+    gap: "0.55rem",
+  },
+  photoCell: {
+    display: "block",
+    borderRadius: 12,
+    overflow: "hidden",
+    border: "1px solid rgba(148,163,184,0.22)",
+    background: "rgba(15,23,42,0.55)",
+  },
+  photoImg: {
+    display: "block",
+    width: "100%",
+    height: 140,
+    objectFit: "cover",
+  },
+  postImg: {
+    display: "block",
+    width: "100%",
+    maxHeight: 360,
+    objectFit: "cover",
+    borderRadius: 10,
+    marginTop: "0.65rem",
   },
   avatarFallback: {
     width: 72,

@@ -2,14 +2,27 @@ import React, { useState, useEffect } from "react";
 import { unwrapOpt } from "./candidUtils";
 import { CATEGORIES, DEFAULT_CATEGORY } from "./categories";
 import useActionFees, { formatIcpFromE8s } from "./useActionFees";
+import { createAnonymousUserSiteActor } from "./actors";
+
+function photoIdKey(id) {
+  if (id == null) return "";
+  if (typeof id === "bigint") return id.toString();
+  return String(id);
+}
+
+function photoPublicUrl(photo, siteCanisterId) {
+  if (!photo) return "";
+  if (photo.url) return String(photo.url);
+  const path = photo.path || `/photos/${photoIdKey(photo.id)}`;
+  if (!siteCanisterId) return "";
+  return `https://${siteCanisterId}.raw.icp0.io${path.startsWith("/") ? path : `/${path}`}`;
+}
 
 /**
- * PostForm – text only for launch.
- * Image support will be added in a future update.
+ * PostForm – text + optional link to an existing public site photo (URL only).
  * Free tier: 115 chars | Paid / master: 512 chars (or limits from canister)
- * Post fee copy only when master has post fees enabled (and free tier is used up).
  */
-export default function PostForm({ actor, onPostCreated, principal }) {
+export default function PostForm({ actor, onPostCreated, principal, siteCanisterId }) {
   const [content, setContent] = useState("");
   const [category, setCategory] = useState(DEFAULT_CATEGORY);
   const [loading, setLoading] = useState(false);
@@ -19,6 +32,8 @@ export default function PostForm({ actor, onPostCreated, principal }) {
   const [freeMax, setFreeMax] = useState(115);
   const [paidMax, setPaidMax] = useState(512);
   const [categories, setCategories] = useState(CATEGORIES);
+  const [sitePhotos, setSitePhotos] = useState([]);
+  const [attachUrl, setAttachUrl] = useState("");
   const { postFeeEnabled, postFeeE8s } = useActionFees(actor);
   const postFeeApplies = postFeeEnabled && !isFreeTier;
   const postFeeLabel = postFeeApplies ? `${formatIcpFromE8s(postFeeE8s)} ICP` : null;
@@ -30,7 +45,6 @@ export default function PostForm({ actor, onPostCreated, principal }) {
 
     const loadStats = async () => {
       try {
-        // Master always gets paid-tier length
         let master = false;
         try {
           if (actor.isOwner) {
@@ -48,9 +62,7 @@ export default function PostForm({ actor, onPostCreated, principal }) {
               setPaidMax(Number(limits.paidMaxLength) || 512);
             }
           }
-        } catch (_) {
-          /* keep defaults */
-        }
+        } catch (_) {}
 
         try {
           if (actor.getCategories) {
@@ -59,9 +71,7 @@ export default function PostForm({ actor, onPostCreated, principal }) {
               setCategories(list);
             }
           }
-        } catch (_) {
-          /* keep defaults */
-        }
+        } catch (_) {}
 
         if (master) {
           setIsFreeTier(false);
@@ -69,18 +79,46 @@ export default function PostForm({ actor, onPostCreated, principal }) {
         }
 
         const result = await actor.getUserStats(principal);
-        // Candid opt can be [] / [val] or null / object depending on binding
         const stats = Array.isArray(result) ? result[0] : result;
         if (stats) {
           setIsFreeTier(!!stats.isFreeTier);
         }
-      } catch (err) {
-        // default to free tier for non-master
-      }
+      } catch (err) {}
     };
 
     loadStats();
   }, [actor, principal]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!siteCanisterId) {
+        setSitePhotos([]);
+        setAttachUrl("");
+        return;
+      }
+      try {
+        const site = await createAnonymousUserSiteActor(siteCanisterId);
+        if (!site.listPhotos) {
+          if (!cancelled) setSitePhotos([]);
+          return;
+        }
+        const list = await site.listPhotos();
+        const normalized = (Array.isArray(list) ? list : [])
+          .map((ph) => ({
+            id: ph.id,
+            url: photoPublicUrl(ph, siteCanisterId),
+          }))
+          .filter((ph) => ph.url);
+        if (!cancelled) setSitePhotos(normalized);
+      } catch (_) {
+        if (!cancelled) setSitePhotos([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [siteCanisterId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -105,8 +143,8 @@ export default function PostForm({ actor, onPostCreated, principal }) {
     setSuccess("");
 
     try {
-      // No image for launch – pass empty optional; third arg is category
-      const result = await actor.makePost(content.trim(), [], category || DEFAULT_CATEGORY);
+      const imageOpt = attachUrl ? [attachUrl] : [];
+      const result = await actor.makePost(content.trim(), imageOpt, category || DEFAULT_CATEGORY);
       const postId = unwrapOpt(result);
 
       if (postId === null || postId === undefined) {
@@ -118,6 +156,7 @@ export default function PostForm({ actor, onPostCreated, principal }) {
       } else {
         setContent("");
         setCategory(DEFAULT_CATEGORY);
+        setAttachUrl("");
         setSuccess("Posted. It should appear on the feed for all devices.");
         if (onPostCreated) onPostCreated(postId);
       }
@@ -197,6 +236,42 @@ export default function PostForm({ actor, onPostCreated, principal }) {
           )}
         </div>
       </div>
+
+      {siteCanisterId && sitePhotos.length > 0 && (
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.35rem",
+            marginTop: "0.75rem",
+            fontSize: "0.85rem",
+            color: "#94a3b8",
+          }}
+        >
+          <span>Attach site photo (public URL link only — optional)</span>
+          <select
+            value={attachUrl}
+            onChange={(e) => setAttachUrl(e.target.value)}
+            disabled={loading}
+            style={{
+              background: "rgba(9, 9, 11, 0.72)",
+              color: "#e2e8f0",
+              border: "1px solid rgba(148, 163, 184, 0.28)",
+              borderRadius: "8px",
+              padding: "0.4rem 0.55rem",
+              fontSize: "0.85rem",
+              fontFamily: "inherit",
+            }}
+          >
+            <option value="">No photo</option>
+            {sitePhotos.map((ph) => (
+              <option key={photoIdKey(ph.id)} value={ph.url}>
+                Photo #{photoIdKey(ph.id)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       {error && (
         <p style={{ color: "#f87171", marginTop: "0.75rem" }}>{error}</p>
