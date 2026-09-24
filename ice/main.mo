@@ -2222,7 +2222,7 @@ persistent actor Ice {
 
   public query func isRegistrationFeeEnabled() : async Bool {
     registrationFeeEnabled
-  }
+  };
 
   /// Factory mint: waive 10 ICP site fee for masters and unlocked referral rewards.
   public query func isMintFeeWaived(user : Principal) : async Bool {
