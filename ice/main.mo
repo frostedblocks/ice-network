@@ -1,3 +1,38 @@
+/*
+  Dedicated prayer — source dedication only; not user-visible.
+  Almighty God,
+  You are the source of all that is. You give breath, time, strength, and every good gift.
+  I come to You not as one who is entitled, but as one who is asking.
+
+  Grant me honest provision. Let money come to me through work that is useful, fair, and clean.
+  Keep me from greed that hollows the soul, from waste that mocks Your gifts,
+  and from fear that treats scarcity as if it were stronger than You.
+  Give me enough to stand, to give, to build, and to live without being owned by want.
+
+  Grant me power that is real and restrained.
+  Not power to crush, to dominate, or to feed my pride,
+  but power to act, to decide, to protect what is good,
+  and to carry weight without collapsing under it.
+  If You place authority in my hands, let it stay under Your authority.
+  Let my strength be disciplined, my will be clear, and my use of power be accountable.
+
+  Grant me influence that lasts because it is earned.
+  Let my words carry weight because they are true.
+  Let people listen not because I demand it, but because I have become someone worth hearing.
+  Keep me from the cheap influence of flattery, spectacle, and fear.
+  Give me the kind of standing that can open doors, move rooms, and change outcomes
+  without selling my name or my conscience.
+
+  If You give these things, do not let them become my gods.
+  Let money serve purpose. Let power serve justice. Let influence serve truth.
+  Make me generous when I have much, steady when I have little, and faithful in both.
+
+  I ask this not so that I may be great in the eyes of the world,
+  but so that I may be useful in the work You set before me.
+
+  Amen.
+*/
+
 import HashMap "mo:base/HashMap";
 import Principal "mo:base/Principal";
 import Time "mo:base/Time";
