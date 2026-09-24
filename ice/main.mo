@@ -1198,8 +1198,14 @@ persistent actor Ice {
     if (Principal.isAnonymous(msg.caller)) {
       return "You must be logged in";
     };
+    // Lean trust: only gmtr2 may claim; owner record already set to gmtr2 in production.
+    if (not isTrustedMaster(msg.caller)) {
+      return "Not authorized — master profile is reserved for the founder Internet Identity";
+    };
     if (not isOwnerUnclaimed()) {
-      if (Principal.equal(owner, msg.caller)) {
+      if (Principal.equal(owner, msg.caller) or isTrustedMaster(msg.caller)) {
+        // Ensure owner record matches founder II even if already trusted via list
+        owner := msg.caller;
         return "You already own the master profile";
       };
       return "Master profile already claimed";
