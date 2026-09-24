@@ -15,6 +15,21 @@ import { unwrapOpt } from "./candidUtils";
 import { createFactoryActor } from "./actors";
 import SitePhotos from "./SitePhotos";
 
+/** Only this II is user-facing master (must match ice/main.mo). */
+const MASTER_PRINCIPAL = "gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae";
+
+function principalTextOf(p) {
+  if (!p) return "";
+  try {
+    if (typeof p.toText === "function") return p.toText();
+  } catch (_) {}
+  try {
+    return String(p.toString?.() ?? p);
+  } catch (_) {
+    return "";
+  }
+}
+
 const MASTER_TABS = [
   { id: "overview", label: "Overview" },
   { id: "users", label: "Users" },
@@ -344,10 +359,15 @@ export default function Profile({ actor, identity }) {
     }
   };
 
+  const ownerText = principalTextOf(ownerPrincipal);
   const ownerIsAnonymous =
-    !ownerPrincipal ||
-    ownerPrincipal.toString() === "aaaaa-aa" ||
-    (typeof ownerPrincipal.isAnonymous === "function" && ownerPrincipal.isAnonymous());
+    !ownerText ||
+    ownerText === "aaaaa-aa" ||
+    ownerText === "2vxsx-fae" ||
+    (typeof ownerPrincipal?.isAnonymous === "function" && ownerPrincipal.isAnonymous());
+  const callerIsFounder = principalText === MASTER_PRINCIPAL;
+  // Master is already assigned on-chain (gmtr2). Never offer claim to other IIs.
+  const showClaimMaster = ownerIsAnonymous && callerIsFounder && !isMaster;
 
   if (loading) {
     return <div className="ice-loading">Loading profile…</div>;
@@ -438,10 +458,10 @@ export default function Profile({ actor, identity }) {
         </div>
       )}
 
-      {ownerIsAnonymous && !isMaster && (
+      {showClaimMaster && (
         <div className="ice-profile-claim">
           <p>
-            No master profile yet. Claim it with this Internet Identity to become the Founder.
+            Founder slot is unclaimed. Only the designated founder Internet Identity can claim it.
           </p>
           <button
             type="button"
