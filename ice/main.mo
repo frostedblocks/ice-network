@@ -543,7 +543,7 @@ persistent actor Ice {
   private stable var paymentsEnabledFixV1 : Bool = false;
 
   // Registration fee (stable names from prior deploy + toggle)
-  /// First-time account fee: 5 ICP (e8s)
+  /// Legacy Join fee (disabled by fee-at-mint migration; site mint fee is on Factory).
   private stable var REGISTRATION_FEE_E8S : Nat = 500_000_000;
   private stable var REGISTRATION_BONUS_TOKENS : Nat = 0; // token packs removed — no soft-token bonus
   private stable var registrationFeeEnabled : Bool = true;
@@ -552,6 +552,8 @@ persistent actor Ice {
   private stable var registrationFee2IcpV1 : Bool = false;
   /// Force live fee to 5 ICP once (does not re-run after master changes fee later if they re-save)
   private stable var registrationFeeTo5IcpOpsV1 : Bool = false;
+  /// Fee-at-mint: disable ICE registration fee (site mint fee lives on Factory).
+  private stable var registrationFeeOffFeeAtMintV1 : Bool = false;
 
   // ─── Prepaid ICP balances + per-action ICP fees (replaces soft tokens / packs) ───
   /// Default OFF / 0 so network stays usable until master configures fees.
@@ -1316,6 +1318,15 @@ persistent actor Ice {
       registrationFeeTo5IcpOpsV1 := true;
       registrationFee2IcpV1 := true;
       registrationFee5IcpV1 := true;
+    };
+    // Product: fee-at-mint only — free Join/register; 10 ICP charged on Factory mint.
+    if (not registrationFeeOffFeeAtMintV1) {
+      REGISTRATION_FEE_E8S := 0;
+      registrationFeeEnabled := false;
+      registrationFeeOffFeeAtMintV1 := true;
+      registrationFee2IcpV1 := true;
+      registrationFee5IcpV1 := true;
+      registrationFeeTo5IcpOpsV1 := true;
     };
   };
 
@@ -2211,6 +2222,11 @@ persistent actor Ice {
 
   public query func isRegistrationFeeEnabled() : async Bool {
     registrationFeeEnabled
+  }
+
+  /// Factory mint: waive 10 ICP site fee for masters and unlocked referral rewards.
+  public query func isMintFeeWaived(user : Principal) : async Bool {
+    isMaster(user) or isReferralFreeEligible(user)
   };
 
   private func isReferralFreeEligible(p : Principal) : Bool {
@@ -2298,7 +2314,7 @@ persistent actor Ice {
       registeredUsers.put(caller, true);
       creditTokens(caller, REGISTRATION_BONUS_TOKENS);
       creditPaidReferral(caller, referralCode);
-      "Registered. Fee paid with Internet Identity. " # Nat.toText(REGISTRATION_BONUS_TOKENS) # " tokens credited. 2.7 ICP reserved for mint cycles; surplus to ops."
+      "Registered. Legacy Join fee paid. Site mint is separate on Factory if still required."
     } else {
       userProfiles.put(caller, { username; bio; avatarURL });
       registeredUsers.put(caller, true);
@@ -2311,7 +2327,7 @@ persistent actor Ice {
       } else if (isMaster(caller)) {
         "Registered (master — no fee). " # Nat.toText(REGISTRATION_BONUS_TOKENS) # " tokens credited."
       } else {
-        "Registered (no fee). " # Nat.toText(REGISTRATION_BONUS_TOKENS) # " tokens credited."
+        "Registered (free). Mint your site when ready — 10 ICP at mint covers your canister and network."
       }
     }
   };
