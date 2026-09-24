@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>About ICE | Decentralized Social Media, User-Owned Social &amp; ICP Social Network</title>
+    <meta
+      name="description"
+      content="About ICE on frostedblocks.com: decentralized social media, ICP social network, Internet Computer social, user-owned social, blockchain social media, no-algorithm social, data sovereignty social, canister social platform, Web3 social network, crypto social app, decentralized messaging, ICP dapp, Internet Identity login, user canister network, censorship-resistant social, on-chain social, sovereign social media, Motoko social."
+    />
+    <meta
+      name="keywords"
+      content="decentralized social media, ICP social network, Internet Computer social, user-owned social, blockchain social media, no-algorithm social, data sovereignty social, canister social platform, Web3 social network, crypto social app, decentralized messaging, ICP dapp, Internet Identity login, user canister network, censorship-resistant social, on-chain social, sovereign social media, Motoko social, ICE network, frostedblocks"
+    />
+    <meta property="og:title" content="About ICE | Sovereign Social Media on Internet Computer" />
+    <meta
+      property="og:description"
+      content="Canister social platform and Motoko social — censorship-resistant social, on-chain social, sovereign social media."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="About ICE | Web3 Social Network &amp; Sovereign Social Media" />
+    <meta
+      name="twitter:description"
+      content="User-owned social with Internet Identity login — data sovereignty social and blockchain social media on ICP."
+    />
+    <!-- Self-contained styles: ICP asset CSP blocks external scripts (no Tailwind CDN). -->
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #e2e8f0;
+        background: #07070b;
+        -webkit-font-smoothing: antialiased;
+      }
+      .bg-mesh {
+        min-height: 100vh;
+        background:
+          radial-gradient(ellipse 80% 50% at 18% -8%, rgba(125, 211, 252, 0.18), transparent 50%),
+          radial-gradient(ellipse 70% 45% at 92% 12%, rgba(167, 139, 250, 0.16), transparent 45%),
+          radial-gradient(ellipse 55% 40% at 50% 100%, rgba(99, 102, 241, 0.12), transparent 50%),
+          #07070b;
+      }
+      .orb {
+        pointer-events: none;
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(64px);
+        z-index: 0;
+      }
+      .orb-a {
+        left: -5rem;
+        top: 18%;
+        width: 17rem;
+        height: 17rem;
+        background: rgba(56, 189, 248, 0.1);
+      }
+      .orb-b {
+        right: -4rem;
+        top: 45%;
+        width: 19rem;
+        height: 19rem;
+        background: rgba(139, 92, 246, 0.1);
+      }
+      .wrap {
+        position: relative;
+        z-index: 1;
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 3.5rem;
+      }
+      @media (min-width: 640px) {
+        .wrap {
+          padding-left: 1.5rem;
+          padding-right: 1.5rem;
+        }
+      }
+      .glass {
+        background: rgba(18, 20, 32, 0.55);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        border-radius: 1.5rem;
+      }
+      .glass-soft {
+        background: rgba(15, 17, 28, 0.45);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+        border-radius: 1rem;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .brand-row {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        text-decoration: none;
+        color: inherit;
+      }
+      .logo {
+        width: 2.25rem;
+        height: 2.25rem;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(139, 92, 246, 0.3));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #fff;
+      }
+      .domain {
+        font-size: 0.875rem;
+        color: #64748b;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .link-ghost {
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
+        color: #cbd5e1;
+        font-size: 0.875rem;
+        font-weight: 500;
+        padding: 0.4rem 1rem;
+        text-decoration: none;
+        transition: border-color 0.15s, background 0.15s, color 0.15s;
+      }
+      .link-ghost:hover {
+        border-color: rgba(56, 189, 248, 0.3);
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+      .hero {
+        padding: 1.85rem 1.5rem 2rem;
+        margin-bottom: 1.15rem;
+        text-align: center;
+      }
+      @media (min-width: 640px) {
+        .hero {
+          padding: 2.25rem 2rem;
+        }
+      }
+      .accent-line {
+        height: 1px;
+        width: 100%;
+        margin: 0 auto 1.5rem;
+        max-width: 11rem;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(125, 211, 252, 0.5),
+          rgba(196, 181, 253, 0.5),
+          transparent
+        );
+        opacity: 0.7;
+      }
+      .eyebrow {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: rgba(125, 211, 252, 0.85);
+        margin: 0 0 0.75rem;
+      }
+      h1 {
+        margin: 0 0 1rem;
+        font-size: clamp(1.75rem, 5vw, 2.35rem);
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+        background: linear-gradient(90deg, #7dd3fc, #a5b4fc, #c4b5fd);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .about-text {
+        margin: 0 auto 1.5rem;
+        max-width: 30rem;
+        color: #94a3b8;
+        font-size: 1.05rem;
+        line-height: 1.65;
+      }
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-width: 280px;
+        padding: 0.9rem 1.5rem;
+        border: none;
+        border-radius: 1rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #0f172a;
+        text-decoration: none;
+        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #a78bfa 100%);
+        box-shadow: 0 4px 24px rgba(129, 140, 248, 0.35);
+        transition: filter 0.15s, box-shadow 0.15s, transform 0.1s;
+        cursor: pointer;
+      }
+      .btn-primary:hover {
+        filter: brightness(1.08);
+        box-shadow: 0 6px 32px rgba(129, 140, 248, 0.45);
+      }
+      .btn-primary:active {
+        transform: scale(0.98);
+      }
+      .btn-wrap {
+        display: flex;
+        justify-content: center;
+      }
+      .sub {
+        margin: 1rem 0 0;
+        font-size: 0.875rem;
+        color: #64748b;
+      }
+      .section {
+        padding: 1.35rem 1.35rem 1.5rem;
+        margin-bottom: 1.15rem;
+      }
+      @media (min-width: 640px) {
+        .section {
+          padding: 1.5rem 1.65rem 1.65rem;
+        }
+      }
+      .section h2 {
+        margin: 0 0 0.65rem;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #f8fafc;
+        letter-spacing: -0.01em;
+      }
+      .section p {
+        margin: 0;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: #94a3b8;
+      }
+      .section p + p {
+        margin-top: 0.7rem;
+      }
+      .section a {
+        color: #a5b4fc;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .section a:hover {
+        color: #7dd3fc;
+      }
+      .builders {
+        margin-bottom: 1.15rem;
+      }
+      .builders summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 1.15rem 1.25rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #a5b4fc;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+      }
+      .builders summary::-webkit-details-marker {
+        display: none;
+      }
+      .builders summary::after {
+        content: "";
+        width: 0.45rem;
+        height: 0.45rem;
+        flex-shrink: 0;
+        border-right: 2px solid #64748b;
+        border-bottom: 2px solid #64748b;
+        transform: rotate(-45deg);
+        transition: transform 0.15s;
+      }
+      .builders[open] summary::after {
+        transform: rotate(45deg);
+      }
+      .builders summary:hover {
+        color: #c4b5fd;
+      }
+      .builders .builders-body {
+        padding: 0 1.25rem 1.25rem;
+      }
+      .builders .builders-body p {
+        margin: 0;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: #94a3b8;
+      }
+      .builders .builders-body p + p {
+        margin-top: 0.7rem;
+      }
+      .bottom-cta {
+        padding: 1.75rem 1.5rem;
+        text-align: center;
+      }
+      .bottom-cta p {
+        margin: 0 0 1.25rem;
+        color: #94a3b8;
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+      footer {
+        margin-top: 2rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        text-align: center;
+        font-size: 0.75rem;
+        color: #475569;
+      }
+      @media (min-width: 640px) {
+        footer {
+          flex-direction: row;
+          justify-content: space-between;
+          text-align: left;
+        }
+      }
+      footer a {
+        color: #94a3b8;
+        text-decoration: none;
+      }
+      footer a:hover {
+        color: #7dd3fc;
+      }
+      .footer-links {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body class="bg-mesh">
+    <div class="orb orb-a" aria-hidden="true"></div>
+    <div class="orb orb-b" aria-hidden="true"></div>
+
+    <div class="wrap">
+      <header>
+        <a class="brand-row" href="/">
+          <div class="logo">ICE</div>
+          <span class="domain">frostedblocks.com</span>
+        </a>
+        <nav class="nav-links" aria-label="Page">
+          <a class="link-ghost" href="/">Home</a>
+          <a class="link-ghost" href="/how-to-join">How to join</a>
+          <a class="link-ghost" href="/">Sign in</a>
+        </nav>
+      </header>
+
+      <section class="glass hero">
+        <div class="accent-line"></div>
+        <p class="eyebrow">A network you control</p>
+        <h1>About ICE</h1>
+        <p class="about-text">
+          Post, follow people you care about, and message privately — without an engagement
+          algorithm steering the conversation.
+        </p>
+        <div class="btn-wrap">
+          <a class="btn-primary" href="/">Create your account</a>
+        </div>
+        <p class="sub">Browse the public feed first if you like. An account is optional.</p>
+      </section>
+
+      <section class="glass-soft section">
+        <h2>What it is</h2>
+        <p>
+          ICE is a social space for updates, follows, and one-to-one messages. Anyone can read the
+          public feed. Signing in lets you post, follow, and message.
+        </p>
+      </section>
+
+      <section class="glass-soft section">
+        <h2>Why ownership</h2>
+        <p>
+          Your account isn’t rented from an ad company. Public posts live with the network. Private
+          messages stay between the people in that chat. You sign in with a passkey or device unlock
+          — not an email and password we store.
+        </p>
+      </section>
+
+      <section class="glass-soft section">
+        <h2>How joining works</h2>
+        <p>
+          Open ICE, choose <strong>Create your account</strong> or <strong>Sign in</strong>, finish
+          Internet Identity on your device (about a minute), then pick a username if asked. No
+          wallet is required to start.
+        </p>
+        <p><a href="/how-to-join">See the three steps →</a></p>
+      </section>
+
+      <details class="glass-soft builders">
+        <summary>For builders</summary>
+        <div class="builders-body">
+          <p>
+            ICE runs on the Internet Computer (ICP). Accounts, public posts, and messaging live in
+            canisters rather than a conventional app database.
+          </p>
+          <p>
+            The backend is written in Motoko. Sign-in uses Internet Identity (passkeys / device
+            unlock), not a site password store. None of this is required reading to join.
+          </p>
+        </div>
+      </details>
+
+      <section class="glass bottom-cta">
+        <p>Ready for user-controlled social?</p>
+        <div class="btn-wrap">
+          <a class="btn-primary" href="/">Create your account</a>
+        </div>
+        <p class="sub">Takes about a minute · Works on phone and computer</p>
+      </section>
+
+      <footer>
+        <p>
+          <span style="color: #94a3b8">ICE</span>
+          · by
+          <a href="https://frostedblocks.com">frostedblocks.com</a>
+        </p>
+        <p class="footer-links">
+          <a href="/">Home</a>
+          ·
+          <a href="/how-to-join">How to join</a>
+          ·
+          <a href="/partners">Partners</a>
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,235 @@
+type AutoTopUpPref = record {
+  maxIcpE8sPerTopUp : nat;
+  enabled : bool;
+  lastTopUpAt : int;
+  maxTopUpsPerDay : nat;
+  dayBucket : int;
+  topUpsToday : nat;
+};
+type CreateUserSiteResult = variant { ok : principal; err : text };
+type CycleAlert = record {
+  at : int;
+  balance : nat;
+  owner : principal;
+  kind : text;
+  site : principal;
+  message : text;
+};
+type DomainRecord = record {
+  domain : text;
+  publicUrl : text;
+  connectedAt : int;
+  dnsConfigured : bool;
+};
+type Factory = service {
+  adminAbandonPendingMint : (principal) -> (text);
+  adminApproveRecoveryRequest : (principal, principal, bool) -> (OpResult);
+  adminBackfillRegistry : () -> (text);
+  adminCancelSiteTransfer : (principal) -> (OpResult);
+  adminConvertIcpToCycles : (nat) -> (text);
+  adminCreateUserSite : (principal) -> (CreateUserSiteResult);
+  adminForceResetSite : (principal) -> (OpResult);
+  adminForceSiteTransfer : (principal, principal) -> (OpResult);
+  adminGenerateSiteRecoveryCode : (principal) -> (OpResult);
+  adminLinkUserCanister : (principal, principal) -> (text);
+  adminProvisionSite : (principal) -> (CreateUserSiteResult);
+  adminPushLatestWasmToAll : (nat) -> (WasmPushResult);
+  adminReassignSite : (principal, principal) -> (text);
+  adminReconcileRegistry : () -> (text);
+  adminRecreateUserSite : (principal) -> (CreateUserSiteResult);
+  adminRejectRecoveryRequest : (principal, principal) -> (OpResult);
+  adminResumePendingMint : (principal) -> (CreateUserSiteResult);
+  adminSetControllers : (principal, vec principal) -> (text);
+  adminSetDomainConnectFee : (nat) -> (text);
+  adminSetFees : (nat, nat, nat) -> (text);
+  adminSetPrincipalMigration : (bool) -> (text);
+  adminSetRegistry : (principal) -> (text);
+  adminSetTransferFee : (nat) -> (text);
+  adminSyncSiteOwner : (principal) -> (OpResult);
+  adminUnlinkUserCanister : (principal) -> (text);
+  adminUpgradeUserSite : (principal) -> (OpResult);
+  appendUserSiteWasm : (blob) -> (text);
+  appendUserSiteWasmHex : (text) -> (text);
+  applyStandardControllers : (principal) -> (text);
+  applyStandardControllersWithOps : (principal) -> (text);
+  cancelSiteTransferOffer : () -> (OpResult);
+  cancelSubscription : (principal) -> (text);
+  checkAndTopUp : (principal) -> ();
+  checkDns : () -> (OpResult);
+  claimOwner : () -> (text);
+  claimSiteByCanisterId : (principal) -> (OpResult);
+  claimSiteTransfer : (text) -> (OpResult);
+  claimSiteWithRecoveryCode : (text) -> (OpResult);
+  clearUserSiteWasm : () -> (text);
+  confirmSiteDns : () -> (OpResult);
+  connectDomain : (text) -> (OpResult);
+  createSiteTransferOffer : () -> (OpResult);
+  createSiteTransferOfferFor : (principal) -> (OpResult);
+  createUserSite : () -> (CreateUserSiteResult);
+  detach : () -> (OpResult);
+  ensureUserSite : () -> (CreateUserSiteResult);
+  fetchNnsDepositBalance : (principal) -> (nat);
+  finalizeUserSiteWasm : () -> (text);
+  getAutoTopUpStatus : (principal) -> (opt AutoTopUpPref) query;
+  getControllerPolicy : () -> (
+      record {
+        note : text;
+        dfxInDefault : bool;
+        factoryMustRemain : bool;
+        roles : vec record { text; text };
+      },
+    ) query;
+  getFactoryCycles : () -> (nat) query;
+  getFactoryIcpBalanceE8s : () -> (nat);
+  getFees : () -> (
+      record {
+        detachFeeE8s : nat;
+        totalIcpReceivedE8s : nat;
+        relinkFeeE8s : nat;
+        domainConnectFeeE8s : nat;
+        topupIcpE8sPerT : nat;
+        transferFeeE8s : nat;
+      },
+    ) query;
+  getHostingAssetsCanisterId : () -> (text) query;
+  getIcDomainsFileBody : () -> (text) query;
+  getLastSite : (principal) -> (opt principal) query;
+  getMyCycleAlerts : (nat) -> (vec CycleAlert) query;
+  getMyRecoveryRequests : () -> (vec RecoveryRequest) query;
+  getMyTransferOfferStatus : () -> (
+      record {
+        expiresAt : int;
+        site : opt principal;
+        claimed : bool;
+        transferFeeE8s : nat;
+        hasOffer : bool;
+      },
+    ) query;
+  getNetworkCyclesHealth : () -> (
+      record {
+        factoryMinMint : nat;
+        registryCycles : opt nat;
+        factoryCanMint : bool;
+        registryLow : bool;
+        message : text;
+        factoryCycles : nat;
+      },
+    );
+  getNnsDepositInfo : (principal) -> (
+      record { owner : principal; note : text; subaccountHex : text },
+    ) query;
+  getOwner : () -> (principal) query;
+  getOwnerCycleAlerts : (nat) -> (vec CycleAlert) query;
+  getPrincipalMigrationStatus : () -> (
+      record { open : bool; claimedCount : nat },
+    ) query;
+  getProvisionCapacity : () -> (
+      record {
+        canMint : bool;
+        wasmReady : bool;
+        message : text;
+        minRequired : nat;
+        factoryCycles : nat;
+      },
+    ) query;
+  getRegistryId : () -> (principal) query;
+  getResetLog : (nat) -> (vec ResetLogEntry) query;
+  getSiteByDomain : (text) -> (opt principal) query;
+  getSiteDomainConnection : (principal) -> (opt DomainRecord) query;
+  getSiteOwner : (principal) -> (opt principal) query;
+  getTransferLog : (nat) -> (vec TransferLogEntry) query;
+  getUserCanister : (principal) -> (opt principal) query;
+  getUserResetStatus : () -> (
+      record {
+        isLinkedOwner : bool;
+        attached : bool;
+        allowed : bool;
+        cooldownRemainingNs : int;
+        message : text;
+        cooldownHours : nat;
+      },
+    ) query;
+  getUserSites : (principal) -> (vec principal) query;
+  getWasmMagicHex : () -> (text) query;
+  getWasmSize : () -> (nat) query;
+  handoverControllers : (principal) -> (text);
+  hasSiteRecoveryCode : () -> (bool) query;
+  health : () -> (text) query;
+  isEligibleForReattach : (principal) -> (bool);
+  isFactoryControllerOf : (principal) -> (bool);
+  isLinked : (principal) -> (bool) query;
+  isSiteReadyToDetach : (principal) -> (bool) query;
+  listActiveCanisters : () -> (vec record { principal; principal }) query;
+  listHostingDomains : () -> (vec HostingDomainRow) query;
+  listMySites : () -> (vec principal) query;
+  listPendingMints : () -> (vec PendingMint) query;
+  listPendingRecoveryRequests : () -> (vec RecoveryRequest) query;
+  listRegisteredSites : () -> (vec record { principal; principal; bool }) query;
+  probeDomainValidate : (text) -> (OpResult);
+  quoteTopUpIcpE8s : (nat) -> (nat) query;
+  regenerateSiteRecoveryCode : () -> (OpResult);
+  regenerateSiteRecoveryCodeFor : (principal) -> (OpResult);
+  relink : (opt principal) -> (OpResult);
+  requestFactoryReset : () -> (OpResult);
+  requestSiteRecovery : (principal, text) -> (OpResult);
+  revealPendingRecoveryCode : () -> (OpResult);
+  scanAutoTopUpLinked : (nat) -> (text);
+  setAutoTopUp : (bool, nat, nat) -> (OpResult);
+  setPreferredSite : (principal) -> (OpResult);
+  setSiteDomainConnection : (text, text) -> (OpResult);
+  setUserSiteWasm : (blob) -> (text);
+  topUpCycles : (principal, nat) -> (OpResult);
+  transformHttpResponse : (TransformArgs) -> (HttpResponsePayload) query;
+  tryAutoTopUpMySite : () -> (OpResult);
+  tryAutoTopUpSite : (principal) -> (OpResult);
+  upgradeMySite : () -> (OpResult);
+};
+type HostingDomainRow = record {
+  domain : text;
+  publicUrl : text;
+  site : principal;
+  dnsConfigured : bool;
+};
+type HttpHeader = record { value : text; name : text };
+type HttpResponsePayload = record {
+  status : nat;
+  body : blob;
+  headers : vec HttpHeader;
+};
+type OpResult = variant { ok : text; err : text };
+type PendingMint = record {
+  intendedOwner : principal;
+  createdAt : int;
+  site : principal;
+  updatedAt : int;
+  stage : text;
+  lastError : text;
+};
+type RecoveryRequest = record {
+  at : int;
+  registeredOwner : opt principal;
+  requester : principal;
+  note : text;
+  site : principal;
+};
+type ResetLogEntry = record {
+  at : int;
+  siteOwner : principal;
+  kind : text;
+  site : principal;
+  triggeredBy : principal;
+};
+type TransferLogEntry = record {
+  at : int;
+  toOwner : principal;
+  kind : text;
+  site : principal;
+  fromOwner : principal;
+};
+type TransformArgs = record { context : blob; response : HttpResponsePayload };
+type WasmPushResult = record {
+  skipped : nat;
+  upgraded : nat;
+  failed : vec record { principal; text };
+};
+service : Factory

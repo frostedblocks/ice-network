@@ -1,0 +1,111 @@
+[
+  {
+    "match": "**/*",
+    "headers": {
+      "Cache-Control": "public, max-age=3600",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "strict-origin-when-cross-origin"
+    },
+    "allow_raw_access": false,
+    "security_policy": "standard",
+    "disable_security_policy_warning": true
+  },
+  {
+    "match": ".well-known",
+    "ignore": false
+  },
+  {
+    "match": ".well-known/**/*",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate",
+      "Access-Control-Allow-Origin": "*",
+      "Content-Type": "application/json"
+    },
+    "ignore": false
+  },
+  {
+    "match": ".well-known/ic-domains",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate",
+      "Content-Type": "text/plain; charset=utf-8"
+    },
+    "ignore": false
+  },
+  {
+    "match": ".well-known/ii-alternative-origins",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate",
+      "Access-Control-Allow-Origin": "*",
+      "Content-Type": "application/json"
+    },
+    "ignore": false
+  },
+  {
+    "match": "index.html",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate",
+      "Content-Security-Policy": "default-src 'self';script-src 'self';connect-src 'self' http://localhost:* https://icp0.io https://*.icp0.io https://*.ic0.app https://icp-api.io https://identity.ic0.app https://identity.internetcomputer.org https://id.ai https://lite.frostedblocks.com;img-src 'self' data:;style-src * 'unsafe-inline';style-src-elem * 'unsafe-inline';font-src *;object-src 'none';base-uri 'self';frame-ancestors 'none';form-action 'self';upgrade-insecure-requests;"
+    }
+  },
+  {
+    "match": "landing.html",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate"
+    }
+  },
+  {
+    "match": "how-to-join.html",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate"
+    },
+    "enable_aliasing": true
+  },
+  {
+    "match": "referral.html",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate",
+      "Content-Security-Policy": "default-src 'self';script-src 'self';connect-src 'self' http://localhost:* https://icp0.io https://*.icp0.io https://*.ic0.app https://icp-api.io https://identity.ic0.app https://identity.internetcomputer.org https://id.ai https://lite.frostedblocks.com;img-src 'self' data:;style-src * 'unsafe-inline';style-src-elem * 'unsafe-inline';font-src *;object-src 'none';base-uri 'self';frame-ancestors 'none';form-action 'self';upgrade-insecure-requests;"
+    },
+    "enable_aliasing": true
+  },
+  {
+    "match": "about.html",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate"
+    },
+    "enable_aliasing": true
+  },
+  {
+    "match": "partners.html",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate"
+    },
+    "enable_aliasing": true
+  },
+  {
+    "match": "admin/lite.html",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate",
+      "X-Robots-Tag": "noindex, nofollow",
+      "Content-Security-Policy": "default-src 'self';script-src 'self';connect-src 'self' http://localhost:* https://icp0.io https://*.icp0.io https://*.ic0.app https://icp-api.io https://identity.ic0.app https://identity.internetcomputer.org https://id.ai https://lite.frostedblocks.com;img-src 'self' data:;style-src * 'unsafe-inline';style-src-elem * 'unsafe-inline';font-src *;object-src 'none';base-uri 'self';frame-ancestors 'none';form-action 'self';upgrade-insecure-requests;"
+    },
+    "enable_aliasing": true
+  },
+  {
+    "match": "landing.html",
+    "enable_aliasing": true
+  },
+  {
+    "match": "**/*.js",
+    "headers": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    }
+  },
+  {
+    "match": "**/*.css",
+    "headers": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    }
+  }
+]

@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ICE Network | Decentralized Social Media, ICP Social Network &amp; Internet Computer Social</title>
+    <meta
+      name="description"
+      content="ICE on frostedblocks.com — decentralized social media and ICP social network. Internet Computer social, user-owned social, blockchain social media, no-algorithm social, data sovereignty social, canister social platform, Web3 social network, crypto social app, decentralized messaging, ICP dapp, Internet Identity login, user canister network, censorship-resistant social, on-chain social, sovereign social media, Motoko social."
+    />
+    <meta
+      name="keywords"
+      content="decentralized social media, ICP social network, Internet Computer social, user-owned social, blockchain social media, no-algorithm social, data sovereignty social, canister social platform, Web3 social network, crypto social app, decentralized messaging, ICP dapp, Internet Identity login, user canister network, censorship-resistant social, on-chain social, sovereign social media, Motoko social, ICE network, frostedblocks"
+    />
+    <meta property="og:title" content="ICE | Decentralized Social Media &amp; ICP Social Network" />
+    <meta
+      property="og:description"
+      content="User-owned social, blockchain social media, no-algorithm social, canister social platform, Web3 social network, crypto social app — Motoko social on the Internet Computer."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ICE | frostedblocks.com" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="ICE | Internet Computer Social &amp; Decentralized Social Media" />
+    <meta
+      name="twitter:description"
+      content="ICP social network with Internet Identity login — censorship-resistant social, on-chain social, sovereign social media."
+    />
+    <!-- Self-contained: ICP asset CSP blocks external scripts (no Tailwind CDN). -->
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #e2e8f0;
+        background: #07070b;
+        -webkit-font-smoothing: antialiased;
+      }
+      .bg-mesh {
+        min-height: 100vh;
+        background:
+          radial-gradient(ellipse 80% 50% at 20% -10%, rgba(125, 211, 252, 0.18), transparent 50%),
+          radial-gradient(ellipse 70% 45% at 90% 10%, rgba(167, 139, 250, 0.16), transparent 45%),
+          radial-gradient(ellipse 60% 40% at 50% 100%, rgba(99, 102, 241, 0.12), transparent 50%),
+          #07070b;
+      }
+      .orb {
+        pointer-events: none;
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(64px);
+        z-index: 0;
+      }
+      .orb-a {
+        left: -6rem;
+        top: 25%;
+        width: 18rem;
+        height: 18rem;
+        background: rgba(56, 189, 248, 0.1);
+      }
+      .orb-b {
+        right: -4rem;
+        top: 33%;
+        width: 20rem;
+        height: 20rem;
+        background: rgba(139, 92, 246, 0.1);
+      }
+      .orb-c {
+        bottom: 0;
+        left: 33%;
+        width: 16rem;
+        height: 16rem;
+        background: rgba(99, 102, 241, 0.1);
+      }
+      .wrap {
+        position: relative;
+        z-index: 1;
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 3rem;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+      @media (min-width: 640px) {
+        .wrap {
+          padding-left: 1.5rem;
+          padding-right: 1.5rem;
+        }
+      }
+      @media (min-width: 1024px) {
+        .wrap {
+          padding-left: 2rem;
+          padding-right: 2rem;
+        }
+      }
+      .glass {
+        background: rgba(18, 20, 32, 0.55);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        border-radius: 1.5rem;
+      }
+      .glass-soft {
+        background: rgba(15, 17, 28, 0.45);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+        border-radius: 1rem;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+      }
+      .brand-row {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+      }
+      .logo {
+        width: 2.25rem;
+        height: 2.25rem;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(139, 92, 246, 0.3));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: -0.02em;
+        box-shadow: 0 0 40px rgba(125, 211, 252, 0.12);
+      }
+      .domain {
+        font-size: 0.875rem;
+        color: #64748b;
+        display: none;
+      }
+      @media (min-width: 640px) {
+        .domain {
+          display: inline;
+        }
+      }
+      .link-ghost {
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
+        color: #cbd5e1;
+        font-size: 0.875rem;
+        font-weight: 500;
+        padding: 0.4rem 1rem;
+        text-decoration: none;
+        transition: border-color 0.15s, background 0.15s, color 0.15s;
+      }
+      .link-ghost:hover {
+        border-color: rgba(56, 189, 248, 0.3);
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+      main {
+        display: grid;
+        gap: 2rem;
+        flex: 1;
+        align-items: start;
+      }
+      @media (min-width: 1024px) {
+        main {
+          grid-template-columns: 5fr 7fr;
+          gap: 2.5rem;
+        }
+        .hero-col {
+          position: sticky;
+          top: 2rem;
+        }
+      }
+      .hero {
+        padding: 1.75rem 1.75rem 2rem;
+      }
+      @media (min-width: 640px) {
+        .hero {
+          padding: 2.25rem;
+        }
+      }
+      .accent-line {
+        height: 1px;
+        width: 100%;
+        margin-bottom: 1.5rem;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(125, 211, 252, 0.5),
+          rgba(196, 181, 253, 0.5),
+          transparent
+        );
+        opacity: 0.7;
+      }
+      .eyebrow {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: rgba(125, 211, 252, 0.85);
+        margin: 0 0 0.75rem;
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 2.5rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+      }
+      @media (min-width: 640px) {
+        h1 {
+          font-size: 3rem;
+        }
+      }
+      h1 span {
+        background: linear-gradient(90deg, #7dd3fc, #a5b4fc, #c4b5fd);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .tagline {
+        margin: 0 0 1.5rem;
+        font-size: 1.15rem;
+        font-weight: 500;
+        color: #e2e8f0;
+      }
+      @media (min-width: 640px) {
+        .tagline {
+          font-size: 1.25rem;
+        }
+      }
+      .copy {
+        margin: 0 0 2rem;
+        color: #94a3b8;
+        font-size: 1.05rem;
+        line-height: 1.6;
+      }
+      .copy p {
+        margin: 0 0 0.35rem;
+      }
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+        padding: 0.9rem 1.5rem;
+        border: none;
+        border-radius: 1rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #0f172a;
+        text-decoration: none;
+        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #a78bfa 100%);
+        box-shadow: 0 4px 24px rgba(129, 140, 248, 0.35);
+        transition: filter 0.15s, box-shadow 0.15s, transform 0.1s;
+        cursor: pointer;
+      }
+      @media (min-width: 640px) {
+        .btn-primary {
+          width: auto;
+          min-width: 220px;
+        }
+      }
+      .btn-primary:hover {
+        filter: brightness(1.08);
+        box-shadow: 0 6px 32px rgba(129, 140, 248, 0.45);
+      }
+      .btn-primary:active {
+        transform: scale(0.98);
+      }
+      .sub {
+        margin: 1rem 0 0;
+        font-size: 0.875rem;
+        color: #64748b;
+        text-align: center;
+      }
+      @media (min-width: 640px) {
+        .sub {
+          text-align: left;
+        }
+      }
+      .pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .pill {
+        font-size: 0.7rem;
+        color: #64748b;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 999px;
+        padding: 0.3rem 0.75rem;
+      }
+      .feed-panel {
+        padding: 1rem;
+      }
+      @media (min-width: 640px) {
+        .feed-panel {
+          padding: 1.5rem;
+        }
+      }
+      .feed-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+        padding: 0 0.25rem;
+      }
+      .feed-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #e2e8f0;
+        margin: 0;
+      }
+      .live-dot {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        background: #34d399;
+        box-shadow: 0 0 8px rgba(52, 211, 153, 0.8);
+        animation: pulse-dot 2s ease-in-out infinite;
+      }
+      @keyframes pulse-dot {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.55;
+          transform: scale(0.92);
+        }
+      }
+      .feed-meta {
+        font-size: 0.75rem;
+        color: #64748b;
+      }
+      .feed-scroll {
+        max-height: min(70vh, 640px);
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding-right: 0.25rem;
+        mask-image: linear-gradient(to bottom, black 0%, black 88%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to bottom, black 0%, black 88%, transparent 100%);
+      }
+      article {
+        padding: 1rem;
+        transition: border-color 0.15s;
+      }
+      article:hover {
+        border-color: rgba(125, 211, 252, 0.2);
+      }
+      .post-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
+      .avatar {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 50%;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+        font-weight: 600;
+        border: 1px solid rgba(125, 211, 252, 0.2);
+      }
+      .av-sky {
+        background: linear-gradient(135deg, rgba(14, 165, 233, 0.35), rgba(79, 70, 229, 0.3));
+        color: #e0f2fe;
+      }
+      .av-violet {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.35), rgba(192, 38, 211, 0.2));
+        color: #ede9fe;
+        border-color: rgba(167, 139, 250, 0.25);
+      }
+      .av-indigo {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(14, 165, 233, 0.2));
+        color: #e0e7ff;
+        border-color: rgba(129, 140, 248, 0.25);
+      }
+      .av-cyan {
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.3), rgba(37, 99, 235, 0.25));
+        color: #cffafe;
+        border-color: rgba(34, 211, 238, 0.2);
+      }
+      .av-fuchsia {
+        background: linear-gradient(135deg, rgba(217, 70, 239, 0.25), rgba(124, 58, 237, 0.25));
+        color: #fae8ff;
+        border-color: rgba(232, 121, 249, 0.2);
+      }
+      .post-body {
+        min-width: 0;
+        flex: 1;
+      }
+      .post-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.5rem;
+      }
+      .name {
+        font-weight: 600;
+        color: #f1f5f9;
+        font-size: 0.95rem;
+      }
+      .time {
+        font-size: 0.75rem;
+        color: #64748b;
+      }
+      .text {
+        margin: 0.4rem 0 0;
+        font-size: 0.95rem;
+        line-height: 1.55;
+        color: #cbd5e1;
+      }
+      .stats {
+        margin-top: 0.75rem;
+        display: flex;
+        gap: 1rem;
+        font-size: 0.75rem;
+        color: #64748b;
+      }
+      .comments {
+        margin: 0.75rem 0 0 1rem;
+        padding-left: 1rem;
+        border-left: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      @media (min-width: 640px) {
+        .comments {
+          margin-left: 3rem;
+        }
+      }
+      .comment {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 0.75rem;
+        padding: 0.6rem 0.75rem;
+      }
+      .comment-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.25rem;
+      }
+      .comment-name {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #e2e8f0;
+      }
+      .comment-time {
+        font-size: 0.65rem;
+        color: #475569;
+      }
+      .comment-text {
+        margin: 0;
+        font-size: 0.875rem;
+        color: #94a3b8;
+        line-height: 1.45;
+      }
+      footer {
+        margin-top: 2.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+        text-align: center;
+        font-size: 0.75rem;
+        color: #475569;
+      }
+      @media (min-width: 640px) {
+        footer {
+          flex-direction: row;
+          justify-content: space-between;
+          text-align: left;
+        }
+      }
+      footer a {
+        color: #94a3b8;
+        text-decoration: none;
+      }
+      footer a:hover {
+        color: #7dd3fc;
+      }
+      footer .bright {
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body class="bg-mesh">
+    <div class="orb orb-a" aria-hidden="true"></div>
+    <div class="orb orb-b" aria-hidden="true"></div>
+    <div class="orb orb-c" aria-hidden="true"></div>
+
+    <div class="wrap">
+      <header>
+        <div class="brand-row">
+          <div class="logo">ICE</div>
+          <span class="domain">frostedblocks.com</span>
+        </div>
+        <a class="link-ghost" href="/">Enter app</a>
+      </header>
+
+      <main>
+        <section class="hero-col">
+          <div class="glass hero">
+            <div class="accent-line"></div>
+            <p class="eyebrow">Internet Computer social · ICP dapp · Motoko social</p>
+            <h1><span>ICE</span> — decentralized social media</h1>
+            <p class="tagline">
+              ICP social network &amp; user-owned social — blockchain social media with no-algorithm social
+              and data sovereignty social on a canister social platform.
+            </p>
+            <div class="copy">
+              <p>
+                A <strong style="color: #e2e8f0">Web3 social network</strong> and
+                <strong style="color: #e2e8f0">crypto social app</strong> with
+                <strong style="color: #e2e8f0">decentralized messaging</strong>,
+                <strong style="color: #e2e8f0">Internet Identity login</strong>, and a
+                <strong style="color: #e2e8f0">user canister network</strong> for
+                <strong style="color: #e2e8f0">censorship-resistant social</strong> and
+                <strong style="color: #e2e8f0">on-chain social</strong> posts.
+              </p>
+              <p>
+                ICE is <strong style="color: #e2e8f0">sovereign social media</strong> built as
+                <strong style="color: #e2e8f0">Motoko social</strong> on the Internet Computer —
+                user-controlled social for real conversation without engagement farms.
+              </p>
+            </div>
+            <a class="btn-primary" href="/">Create Account</a>
+            <p class="sub">No-algorithm social. Internet Computer social you own.</p>
+            <p class="sub" style="margin-top: 0.75rem; line-height: 1.8">
+              <a href="/how-to-join.html" style="color: #a5b4fc; font-weight: 600; text-decoration: none"
+                >How to join →</a
+              ><br />
+              <a href="/about.html" style="color: #a5b4fc; font-weight: 600; text-decoration: none"
+                >About →</a
+              >
+            </p>
+            <div class="pills">
+              <span class="pill">On-chain social</span>
+              <span class="pill">No-algorithm social</span>
+              <span class="pill">User-owned social</span>
+              <span class="pill">ICP dapp</span>
+              <span class="pill">Canister social platform</span>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="glass feed-panel">
+            <div class="feed-head">
+              <h2 class="feed-title">
+                <span class="live-dot" aria-hidden="true"></span>
+                Live on-chain feed
+              </h2>
+              <span class="feed-meta">ICE Network ICP · public conversation</span>
+            </div>
+
+            <div class="feed-scroll">
+              <article class="glass-soft">
+                <div class="post-row">
+                  <div class="avatar av-sky">M</div>
+                  <div class="post-body">
+                    <div class="post-meta">
+                      <span class="name">Maya Chen</span>
+                      <span class="time">2m ago</span>
+                    </div>
+                    <p class="text">
+                      User-controlled networks beat noisy ones. ICE feels like the early internet again — people
+                      talking, not performing for a feed score.
+                    </p>
+                    <div class="stats">
+                      <span>12 likes</span>
+                      <span>3 comments</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="comments">
+                  <div class="comment">
+                    <div class="comment-meta">
+                      <span class="comment-name">Jordan</span>
+                      <span class="comment-time">1m</span>
+                    </div>
+                    <p class="comment-text">This. Less noise, more signal.</p>
+                  </div>
+                  <div class="comment">
+                    <div class="comment-meta">
+                      <span class="comment-name">Aisha</span>
+                      <span class="comment-time">just now</span>
+                    </div>
+                    <p class="comment-text">
+                      Decentralized doesn’t have to mean complicated. This layout is clean.
+                    </p>
+                  </div>
+                </div>
+              </article>
+
+              <article class="glass-soft">
+                <div class="post-row">
+                  <div class="avatar av-violet">R</div>
+                  <div class="post-body">
+                    <div class="post-meta">
+                      <span class="name">River Okonkwo</span>
+                      <span class="time">18m ago</span>
+                    </div>
+                    <p class="text">
+                      Shipped a short note from my principal identity tonight. No ads in the way. No
+                      “for you” tab rearranging my words. Just the post.
+                    </p>
+                    <div class="stats">
+                      <span>28 likes</span>
+                      <span>7 comments</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="comments">
+                  <div class="comment">
+                    <div class="comment-meta">
+                      <span class="comment-name">Sam</span>
+                      <span class="comment-time">12m</span>
+                    </div>
+                    <p class="comment-text">Identity-owned speech is the feature, not a setting.</p>
+                  </div>
+                </div>
+              </article>
+
+              <article class="glass-soft">
+                <div class="post-row">
+                  <div class="avatar av-indigo">L</div>
+                  <div class="post-body">
+                    <div class="post-meta">
+                      <span class="name">Lena Voss</span>
+                      <span class="time">1h ago</span>
+                    </div>
+                    <p class="text">
+                      Morning thought: open communication scales better when the platform doesn’t
+                      decide who you hear. Looking forward to threads I actually choose on ICE.
+                    </p>
+                    <div class="stats">
+                      <span>41 likes</span>
+                      <span>5 comments</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article class="glass-soft">
+                <div class="post-row">
+                  <div class="avatar av-cyan">T</div>
+                  <div class="post-body">
+                    <div class="post-meta">
+                      <span class="name">Theo Park</span>
+                      <span class="time">3h ago</span>
+                    </div>
+                    <p class="text">
+                      Tokens for attention-heavy actions, free tier for short thoughts. Feels fair —
+                      and refreshingly honest about cost.
+                    </p>
+                    <div class="stats">
+                      <span>19 likes</span>
+                      <span>4 comments</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="comments">
+                  <div class="comment">
+                    <div class="comment-meta">
+                      <span class="comment-name">Noor</span>
+                      <span class="comment-time">2h</span>
+                    </div>
+                    <p class="comment-text">Yes — economics you can see beat hidden ranking.</p>
+                  </div>
+                  <div class="comment">
+                    <div class="comment-meta">
+                      <span class="comment-name">Eli</span>
+                      <span class="comment-time">2h</span>
+                    </div>
+                    <p class="comment-text">Joining after I finish setup. See you in the feed.</p>
+                  </div>
+                </div>
+              </article>
+
+              <article class="glass-soft">
+                <div class="post-row">
+                  <div class="avatar av-fuchsia">C</div>
+                  <div class="post-body">
+                    <div class="post-meta">
+                      <span class="name">Cam Delgado</span>
+                      <span class="time">5h ago</span>
+                    </div>
+                    <p class="text">
+                      frostblocks energy: cold UI, warm conversations. The glass aesthetic actually
+                      matches the ethos — transparent, not flashy.
+                    </p>
+                    <div class="stats">
+                      <span>33 likes</span>
+                      <span>2 comments</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <p>
+          <span class="bright">ICE</span>
+          · by
+          <a href="https://frostedblocks.com">frostedblocks.com</a>
+        </p>
+        <p>Placeholder feed for preview · Not live chain data</p>
+      </footer>
+    </div>
+  </body>
+</html>

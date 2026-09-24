@@ -1,0 +1,11 @@
+.dfx/
+node_modules/
+assets/node_modules/
+assets/dist/
+assets/.env
+assets/.env.local
+assets/.env.production
+*.wasm
+*.wasm.gz
+.idea/
+.vscode/

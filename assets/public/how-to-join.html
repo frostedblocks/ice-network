@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>How to Join ICE | Internet Identity Login on ICP Social Network &amp; ICP Dapp</title>
+    <meta
+      name="description"
+      content="Join ICE — decentralized social media and ICP social network. Internet Computer social with Internet Identity login on an ICP dapp. User-owned social, blockchain social media, no-algorithm social, data sovereignty social, canister social platform, Web3 social network, crypto social app, decentralized messaging, user canister network, censorship-resistant social, on-chain social, sovereign social media, Motoko social."
+    />
+    <meta
+      name="keywords"
+      content="decentralized social media, ICP social network, Internet Computer social, user-owned social, blockchain social media, no-algorithm social, data sovereignty social, canister social platform, Web3 social network, crypto social app, decentralized messaging, ICP dapp, Internet Identity login, user canister network, censorship-resistant social, on-chain social, sovereign social media, Motoko social, join ICE, frostedblocks"
+    />
+    <meta property="og:title" content="How to Join ICE | Internet Identity Login &amp; ICP Dapp" />
+    <meta
+      property="og:description"
+      content="Start on this Web3 social network with Internet Identity login — decentralized social media and Motoko social on ICP."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Join ICE | ICP Social Network &amp; ICP Dapp" />
+    <meta
+      name="twitter:description"
+      content="ICP social network signup — Internet Identity login, user-owned social, no-algorithm social."
+    />
+    <!-- Self-contained styles: ICP asset CSP blocks external scripts (no Tailwind CDN). -->
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #e2e8f0;
+        background: #07070b;
+        -webkit-font-smoothing: antialiased;
+      }
+      .bg-mesh {
+        min-height: 100vh;
+        background:
+          radial-gradient(ellipse 80% 50% at 20% -10%, rgba(125, 211, 252, 0.18), transparent 50%),
+          radial-gradient(ellipse 70% 45% at 90% 10%, rgba(167, 139, 250, 0.16), transparent 45%),
+          radial-gradient(ellipse 60% 40% at 50% 100%, rgba(99, 102, 241, 0.12), transparent 50%),
+          #07070b;
+      }
+      .orb {
+        pointer-events: none;
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(64px);
+        z-index: 0;
+      }
+      .orb-a {
+        left: -6rem;
+        top: 20%;
+        width: 18rem;
+        height: 18rem;
+        background: rgba(56, 189, 248, 0.1);
+      }
+      .orb-b {
+        right: -4rem;
+        top: 40%;
+        width: 20rem;
+        height: 20rem;
+        background: rgba(139, 92, 246, 0.1);
+      }
+      .wrap {
+        position: relative;
+        z-index: 1;
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 3.5rem;
+      }
+      @media (min-width: 640px) {
+        .wrap {
+          padding-left: 1.5rem;
+          padding-right: 1.5rem;
+        }
+      }
+      .glass {
+        background: rgba(18, 20, 32, 0.55);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        border-radius: 1.5rem;
+      }
+      .glass-soft {
+        background: rgba(15, 17, 28, 0.45);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+        border-radius: 1rem;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .brand-row {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        text-decoration: none;
+        color: inherit;
+      }
+      .logo {
+        width: 2.25rem;
+        height: 2.25rem;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(139, 92, 246, 0.3));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #fff;
+      }
+      .domain {
+        font-size: 0.875rem;
+        color: #64748b;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .link-ghost {
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
+        color: #cbd5e1;
+        font-size: 0.875rem;
+        font-weight: 500;
+        padding: 0.4rem 1rem;
+        text-decoration: none;
+        transition: border-color 0.15s, background 0.15s, color 0.15s;
+      }
+      .link-ghost:hover {
+        border-color: rgba(56, 189, 248, 0.3);
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+      .hero {
+        padding: 1.75rem 1.5rem 2rem;
+        margin-bottom: 1.25rem;
+        text-align: center;
+      }
+      @media (min-width: 640px) {
+        .hero {
+          padding: 2.25rem 2rem;
+        }
+      }
+      .accent-line {
+        height: 1px;
+        width: 100%;
+        margin: 0 auto 1.5rem;
+        max-width: 12rem;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(125, 211, 252, 0.5),
+          rgba(196, 181, 253, 0.5),
+          transparent
+        );
+        opacity: 0.7;
+      }
+      .eyebrow {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: rgba(125, 211, 252, 0.85);
+        margin: 0 0 0.75rem;
+      }
+      h1 {
+        margin: 0 0 0.75rem;
+        font-size: clamp(1.75rem, 5vw, 2.25rem);
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+        background: linear-gradient(90deg, #7dd3fc, #a5b4fc, #c4b5fd);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .lead {
+        margin: 0 auto 1.5rem;
+        max-width: 28rem;
+        color: #94a3b8;
+        font-size: 1.05rem;
+        line-height: 1.6;
+      }
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-width: 280px;
+        padding: 0.9rem 1.5rem;
+        border: none;
+        border-radius: 1rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #0f172a;
+        text-decoration: none;
+        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #a78bfa 100%);
+        box-shadow: 0 4px 24px rgba(129, 140, 248, 0.35);
+        transition: filter 0.15s, box-shadow 0.15s, transform 0.1s;
+        cursor: pointer;
+      }
+      .btn-primary:hover {
+        filter: brightness(1.08);
+        box-shadow: 0 6px 32px rgba(129, 140, 248, 0.45);
+      }
+      .btn-primary:active {
+        transform: scale(0.98);
+      }
+      .btn-wrap {
+        display: flex;
+        justify-content: center;
+      }
+      .sub {
+        margin: 1rem 0 0;
+        font-size: 0.875rem;
+        color: #64748b;
+      }
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        margin-bottom: 1.25rem;
+      }
+      .step {
+        display: flex;
+        gap: 1rem;
+        padding: 1.15rem 1.2rem;
+        align-items: flex-start;
+      }
+      .step-num {
+        flex-shrink: 0;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 0.85rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: #0f172a;
+        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 55%, #a78bfa 100%);
+        box-shadow: 0 4px 16px rgba(129, 140, 248, 0.25);
+      }
+      .step-body {
+        min-width: 0;
+        flex: 1;
+        padding-top: 0.15rem;
+      }
+      .step-title {
+        margin: 0 0 0.4rem;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #f8fafc;
+      }
+      .step-text {
+        margin: 0;
+        font-size: 0.95rem;
+        line-height: 1.55;
+        color: #94a3b8;
+      }
+      .step-text strong {
+        color: #cbd5e1;
+        font-weight: 600;
+      }
+      .note {
+        padding: 1.15rem 1.25rem;
+        margin-bottom: 1.25rem;
+      }
+      .note h2 {
+        margin: 0 0 0.5rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #a5b4fc;
+      }
+      .note p {
+        margin: 0;
+        font-size: 0.9rem;
+        line-height: 1.55;
+        color: #94a3b8;
+      }
+      .note p + p {
+        margin-top: 0.65rem;
+      }
+      .bottom-cta {
+        padding: 1.75rem 1.5rem;
+        text-align: center;
+      }
+      .bottom-cta p {
+        margin: 0 0 1.25rem;
+        color: #94a3b8;
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+      footer {
+        margin-top: 2rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        text-align: center;
+        font-size: 0.75rem;
+        color: #475569;
+      }
+      @media (min-width: 640px) {
+        footer {
+          flex-direction: row;
+          justify-content: space-between;
+          text-align: left;
+        }
+      }
+      footer a {
+        color: #94a3b8;
+        text-decoration: none;
+      }
+      footer a:hover {
+        color: #7dd3fc;
+      }
+      .footer-links {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body class="bg-mesh">
+    <div class="orb orb-a" aria-hidden="true"></div>
+    <div class="orb orb-b" aria-hidden="true"></div>
+
+    <div class="wrap">
+      <header>
+        <a class="brand-row" href="/">
+          <div class="logo">ICE</div>
+          <span class="domain">frostedblocks.com</span>
+        </a>
+        <nav class="nav-links" aria-label="Page">
+          <a class="link-ghost" href="/">Home</a>
+          <a class="link-ghost" href="/about">About</a>
+          <a class="link-ghost" href="/">Sign in</a>
+        </nav>
+      </header>
+
+      <section class="glass hero">
+        <div class="accent-line"></div>
+        <p class="eyebrow">Three short steps</p>
+        <h1>How to join ICE</h1>
+        <p class="lead">
+          Create your account in about a minute. No email or password, and no wallet required to
+          start.
+        </p>
+        <div class="btn-wrap">
+          <a class="btn-primary" href="/">Create your account</a>
+        </div>
+        <p class="sub">Works on phone and computer</p>
+      </section>
+
+      <div class="steps">
+        <article class="glass-soft step">
+          <div class="step-num" aria-hidden="true">1</div>
+          <div class="step-body">
+            <h2 class="step-title">Open ICE</h2>
+            <p class="step-text">
+              On the home page, choose <strong>Create your account</strong> or
+              <strong>Sign in</strong>. Both start the same secure sign-in flow.
+            </p>
+          </div>
+        </article>
+
+        <article class="glass-soft step">
+          <div class="step-num" aria-hidden="true">2</div>
+          <div class="step-body">
+            <h2 class="step-title">Complete Internet Identity</h2>
+            <p class="step-text">
+              Follow the prompts on your device — a passkey, Face ID, fingerprint, or security key.
+              It usually takes about a minute. No wallet is required to start.
+            </p>
+          </div>
+        </article>
+
+        <article class="glass-soft step">
+          <div class="step-num" aria-hidden="true">3</div>
+          <div class="step-body">
+            <h2 class="step-title">Return and pick a username</h2>
+            <p class="step-text">
+              When you come back to ICE, choose a username if asked. Then you can post, follow, and
+              message.
+            </p>
+          </div>
+        </article>
+      </div>
+
+      <aside class="glass-soft note">
+        <h2>Good to know</h2>
+        <p>
+          You recover access through Internet Identity on your devices — not email or a site
+          password. Keep at least one registered device or passkey so you can sign in later.
+        </p>
+        <p>
+          Browsing the public feed is free. Creating an account may include a small one-time fee;
+          you’ll see the amount before you confirm.
+        </p>
+      </aside>
+
+      <section class="glass bottom-cta">
+        <p>Ready when you are.</p>
+        <div class="btn-wrap">
+          <a class="btn-primary" href="/">Create your account</a>
+        </div>
+        <p class="sub">Takes about a minute · Works on phone and computer</p>
+      </section>
+
+      <footer>
+        <p>
+          <span style="color: #94a3b8">ICE</span>
+          · by
+          <a href="https://frostedblocks.com">frostedblocks.com</a>
+        </p>
+        <p class="footer-links">
+          <a href="/">Home</a>
+          ·
+          <a href="/about">About</a>
+          ·
+          <a href="/partners">Partners</a>
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "canisters": {
+    "registry": {
+      "type": "motoko",
+      "main": "src/registry/main.mo",
+      "declarations": {
+        "output": "src/declarations/registry",
+        "bindings": ["js", "ts", "did"]
+      }
+    },
+    "factory": {
+      "type": "motoko",
+      "main": "src/factory/main.mo",
+      "declarations": {
+        "output": "src/declarations/factory",
+        "bindings": ["js", "ts", "did"]
+      }
+    },
+    "user_site": {
+      "type": "motoko",
+      "main": "src/user_site/main.mo",
+      "declarations": {
+        "output": "src/declarations/user_site",
+        "bindings": ["js", "ts", "did"]
+      }
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": ""
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    },
+    "ic": {
+      "providers": ["https://icp0.io"],
+      "type": "persistent"
+    }
+  }
+}

@@ -1,0 +1,456 @@
+type UserProfile = 
+ record {
+   avatarURL: text;
+   bio: text;
+   username: text;
+ };
+type TreasuryStats = 
+ record {
+   paymentsEnabled: bool;
+   pendingCount: nat;
+   totalIcpReceivedE8s: nat;
+ };
+type Time = int;
+type SubOffer = 
+ record {
+   priceE8s: nat;
+   tierLabel: text;
+   tokens: nat;
+ };
+type SiteStats = 
+ record {
+   bannedUsers: nat;
+   hiddenPosts: nat;
+   registeredAccounts: nat;
+   reportedPosts: nat;
+   tokensInCirculation: nat;
+   totalBalances: nat;
+   totalComments: nat;
+   totalPosts: nat;
+   totalProfiles: nat;
+   totalReportFlags: nat;
+   visiblePosts: nat;
+ };
+type Post = 
+ record {
+   author: principal;
+   content: text;
+   id: nat;
+   imageURL: opt text;
+   isHidden: bool;
+   likes: nat;
+   loves: nat;
+   reportCount: nat;
+   timestamp: Time;
+ };
+type PendingPayment = 
+ record {
+   priceE8s: nat;
+   requestedAt: Time;
+   tokens: nat;
+   user: principal;
+ };
+type Notification = 
+ record {
+   createdAt: Time;
+   from: principal;
+   id: nat;
+   kind: text;
+   message: text;
+   read: bool;
+   refId: nat;
+ };
+type MasterContact = 
+ record {
+   content: text;
+   createdAt: Time;
+   from: principal;
+   fromLabel: text;
+   id: nat;
+   read: bool;
+ };
+type LiteAdminWrite = 
+ variant {
+   ok: LiteAdmin;
+   unauthorized;
+ };
+type LiteAdmin = 
+ record {
+   bannedLiteHandles: vec text;
+   feedBridgeOpen: bool;
+   hiddenLitePostIds: vec text;
+   signupsOpen: bool;
+   updatedAt: int;
+ };
+type Limits = 
+ record {
+   dailyLimit: nat;
+   freeMaxLength: nat;
+   freeTierLimit: nat;
+   maxCommentLength: nat;
+   paidMaxLength: nat;
+   reportsToHide: nat;
+   tokensPerLove: nat;
+   tokensPerMessage: nat;
+   tokensPerPost: nat;
+ };
+type Comment = 
+ record {
+   author: principal;
+   content: text;
+   id: nat;
+   postId: nat;
+   timestamp: Time;
+ };
+type Associates = 
+ record {
+   followers: vec principal;
+   following: vec principal;
+ };
+type AdminUserInfo = 
+ record {
+   bio: text;
+   isBanned: bool;
+   isFreeTier: bool;
+   isRegistered: bool;
+   postsThisMonth: nat;
+   postsToday: nat;
+   tokens: nat;
+   user: principal;
+   username: text;
+ };
+service : {
+  addComment: (postId: nat, content: text) -> (opt nat);
+  adminBanUser: (user: principal) -> (text);
+  /// Master: clear prepaid ICP balance to 0.
+  adminClearIcpE8s: (from: principal) -> (text);
+  /// Master: set user balance to zero.
+  adminClearTokens: (from: principal) -> (text);
+  /// Master confirms a *manual* request after verifying ICP off-chain. Prefer buyTokenPack (auto).
+  adminConfirmPayment: (pendingId: nat) -> (text);
+  /// Master/ops: convert ICE treasury ICP into cycles on the master factory via CMC.
+  /// amountE8s = 0 converts all liquid ICP (minus one ledger fee).
+  adminConvertTreasuryIcpToFactoryCycles: (amountE8s: nat) -> (text);
+  /// Master: credit prepaid ICP e8s without ledger pull (ops / recovery).
+  adminCreditIcpE8s: (to: principal, amountE8s: nat) -> (text);
+  /// Master: debit prepaid ICP e8s (capped at balance; no ledger transfer).
+  adminDebitIcpE8s: (from: principal, amountE8s: nat) -> (text);
+  /// Master: delete a user profile + free its username. Does not delete posts.
+  /// Use for duplicate/legacy II principals (e.g. old founder after owner transfer).
+  /// Cannot delete the current owner principal's profile.
+  adminDeleteProfile: (user: principal) -> (text);
+  /// Master campaign tracker: every inviter count + who referred whom (paid Joins only).
+  adminGetReferralTracker: () ->
+   (record {
+      authorized: bool;
+      claimedCount: nat;
+      inviters:
+       vec
+        record {
+          claimed: bool;
+          count: nat;
+          eligible: bool;
+          "principal": text;
+          username: text;
+        };
+      links:
+       vec
+        record {
+          inviter: text;
+          inviterUsername: text;
+          newUser: text;
+          newUsername: text;
+        };
+      threshold: nat;
+      totalPaidReferrals: nat;
+      uniqueInviters: nat;
+      unlockedCount: nat;
+    }) query;
+  adminGrantTokens: (to: principal, amount: nat) -> (bool);
+  adminHidePost: (postId: nat) -> (bool);
+  /// Master: list all profiles (principal + username + bio). For cleanup / audits.
+  adminListProfiles: () -> (vec record {
+                                  principal;
+                                  text;
+                                  text;
+                                }) query;
+  /// Master: look up one user by II principal text or exact username.
+  adminLookupUser: (queryText: text) -> (opt AdminUserInfo) query;
+  /// Master: mark a principal registered without charging ICP (payment recovery / II principal mismatch).
+  /// If username is empty, only flips the registered flag (keeps existing profile if any).
+  adminMarkRegistered: (user: principal, username: text, bio: text) -> (text);
+  /// Master: II principal mismatch recovery — copy membership to a new II without Join fee.
+  /// Marks `to` registered; optionally reassigns username from `from` if `to` has none.
+  /// Does not move posts/tokens (use adminGrantTokens / profile save separately).
+  adminMigrateMembership: (from: principal, to: principal) -> (text);
+  /// Master: re-run migration — mark all known IIs registered (no fees).
+  adminRegisterAllExistingUsers: () -> (text);
+  adminRejectPayment: (pendingId: nat) -> (text);
+  /// Master: remove tokens from a user (capped at their current balance).
+  adminRemoveTokens: (from: principal, amount: nat) -> (text);
+  /// Master: search users by username substring (case-insensitive). Also accepts a full principal.
+  adminSearchUsers: (queryText: text, limit: nat) ->
+   (vec AdminUserInfo) query;
+  /// Master: set ICP action fees (e8s) and on/off for post, love, message.
+  adminSetActionFees: (postEnabled: bool, postE8s: nat, loveEnabled: 
+   bool, loveE8s: nat, messageEnabled: bool, messageE8s: nat) -> (text);
+  adminSetLimits: (freeTierLimit: nat, dailyLimit: nat, tokensPerPost: 
+   nat, tokensPerLove: nat, tokensPerMessage: nat, freeMaxLength: nat,
+   paidMaxLength: nat, maxCommentLength: nat, reportsToHide: nat) -> (
+   text);
+  adminSetPaymentsEnabled: (enabled: bool) -> (text);
+  adminSetPrices: (p1: nat, p2: nat, p3: nat) -> (text);
+  adminSetReferralThreshold: (n: nat) -> (text);
+  /// Master: turn registration fee on/off and set fee (e8s) + bonus tokens.
+  adminSetRegistrationFee: (enabled: bool, feeE8s: nat, bonusTokens: 
+   nat) -> (text);
+  /// Master: minimum cumulative tip to master (e8s) required before tipping others.
+  adminSetTipUnlockMinE8s: (minE8s: nat) -> (text);
+  adminSetTippingEnabled: (enabled: bool) -> (text);
+  /// Deprecated — token packs removed. Use adminSetActionFees + depositIcp.
+  adminSetTokenPacks: (t1: nat, p1: nat, t2: nat, p2: nat, t3: nat, p3:
+   nat) -> (text);
+  adminUnbanUser: (user: principal) -> (text);
+  adminUnhidePost: (postId: nat) -> (bool);
+  /// Master: clear registered flag for a principal that was auto-marked but is not a real member
+  /// (e.g. ops deploy identity / unused founder IIs). Does not remove profile if one exists.
+  adminUnmarkRegistered: (user: principal) -> (text);
+  banLiteHandle: (handle: text) -> (LiteAdminWrite);
+  /// Block target: store block and remove any follow edge both directions.
+  block: (target: principal) -> (text);
+  /// Token packs removed — use depositIcp instead.
+  buyTokenPack: (_tokenAmount: nat) -> (text);
+  /// True only for the current Lite admin owner II (does not reveal the principal).
+  canManageLiteAdmin: () -> (bool) query;
+  /// Charge prepaid ICP for a DM when message fees are on. Master is free.
+  chargeForMessage: () -> (bool);
+  /// One-time: ICE master (Master Profile) assigns Lite admin writes to msg.caller.
+  /// After this, only that II can call setSignupsOpen / ban / hide / etc.
+  claimLiteAdmin: () -> (text);
+  claimMasterProfile: () -> (text);
+  /// After factory claimSiteByCanisterId: mark this II registered on ICE without Join fee.
+  /// Requires owning at least one factory-registered personal site.
+  completePrincipalMigration: () -> (text);
+  /// Anyone (including guests before sign-in) can message the master profile.
+  /// Anonymous callers: 60s global cooldown. Max 500 chars. Stored for master inbox.
+  contactMaster: (fromLabel: text, content: text) -> (text);
+  /// Author or master can delete a comment.
+  deleteComment: (commentId: nat) -> (text);
+  /// Author can permanently remove their post. Master can also delete any post.
+  deletePost: (postId: nat) -> (text);
+  /// Deposit ICP into prepaid balance: II must icrc2_approve this canister first.
+  depositIcp: (amountE8s: nat) -> (text);
+  /// Author can edit their comment text.
+  editComment: (commentId: nat, content: text) -> (text);
+  /// Author can update post text (and optional image URL). Respects length limits.
+  editPost: (postId: nat, content: text, imageURL: opt text) -> (text);
+  /// One-shot / status: ensures launch migration ran, returns whether pack payments are live.
+  ensurePaymentsLive: () -> (bool);
+  ensureRegistrationFee2Icp: () -> (text);
+  /// Apply current first-login fee migration (2 ICP). Master can still change via adminSetRegistrationFee.
+  ensureRegistrationFee5Icp: () -> (text);
+  fetchNnsDepositBalance: (user: principal) -> (nat);
+  /// Batch: which of `authors` are blocked either way vs `viewer` (for feed filtering)
+  filterBlockedAuthors: (viewer: principal, authors: vec principal) ->
+   (vec principal) query;
+  /// Follow target. Fails if anonymous, self, banned, or either side blocked.
+  follow: (target: principal) -> (text);
+  /// following + followers for Associates UI
+  getAssociates: (me: principal) -> (Associates) query;
+  getBannedUsers: () -> (vec principal) query;
+  /// Principals that `user` has blocked
+  getBlocked: (user: principal) -> (vec principal) query;
+  /// Master-only: cycle balances for ice, messaging, and assets (separately).
+  /// Update call (uses management canister for messaging + assets).
+  getCanisterCycles: () -> (record {
+                              assets: nat;
+                              ice: nat;
+                              messaging: nat;
+                            });
+  /// Fixed list of valid post categories
+  getCategories: () -> (vec text) query;
+  /// Batch lookup: (postId, category) for each id
+  getCategoriesForPosts: (postIds: vec nat) -> (vec record {
+                                                      nat;
+                                                      text;
+                                                    }) query;
+  getComments: (postId: nat) -> (vec Comment) query;
+  getEconomyConfig: () ->
+   (record {
+      loveFeeE8s: nat;
+      loveFeeEnabled: bool;
+      messageFeeE8s: nat;
+      messageFeeEnabled: bool;
+      paymentsEnabled: bool;
+      postFeeE8s: nat;
+      postFeeEnabled: bool;
+      price1E8s: nat;
+      price2E8s: nat;
+      price3E8s: nat;
+      registrationBonusTokens: nat;
+      registrationFeeE8s: nat;
+      registrationFeeEnabled: bool;
+      tier1Tokens: nat;
+      tier2Tokens: nat;
+      tier3Tokens: nat;
+      tipUnlockMinE8s: nat;
+      tippingEnabled: bool;
+    }) query;
+  /// Categories the user follows (empty = none selected yet)
+  getFollowedCategories: (user: principal) -> (vec text) query;
+  getFollowers: (user: principal) -> (vec principal) query;
+  getFollowing: (user: principal) -> (vec principal) query;
+  /// Followers' feed: posts from people the caller follows (social Follow).
+  /// This is the only feed that shows detached authors (to their followers).
+  getFollowingPeoplePosts: (limit: nat) -> (vec Post) query;
+  /// Main ICE feed (logged-in or same as public): never includes detached (network-private) authors.
+  /// Detached users' posts are only on their profile and on followers' people-feed.
+  getHomeFeed: (limit: nat) -> (vec Post) query;
+  /// Liquid ICP on ICE default account (treasury).
+  getIceTreasuryIcpBalanceE8s: () -> (nat);
+  getLimits: () -> (Limits) query;
+  /// Public read — Lite servers and anyone may query current lock state.
+  getLiteAdmin: () -> (LiteAdmin) query;
+  getMasterContacts: (limit: nat) -> (vec MasterContact) query;
+  getMyIcpE8s: () -> (nat) query;
+  /// Inviter view: principals/usernames who paid Join through this II's `?ref=`.
+  getMyReferralInvites: () ->
+   (record {
+      count: nat;
+      invites: vec record {
+                     "principal": text;
+                     username: text;
+                   };
+      threshold: nat;
+    }) query;
+  getMyReferralStatus: () ->
+   (record {
+      claimed: bool;
+      count: nat;
+      eligible: bool;
+      invitePrincipal: text;
+      threshold: nat;
+    }) query;
+  getMyTipUnlockStatus: () ->
+   (record {
+      paidToMasterE8s: nat;
+      requiredE8s: nat;
+      unlocked: bool;
+    }) query;
+  /// Legacy name — returns prepaid ICP e8s (not soft tokens).
+  getMyTokens: () -> (nat) query;
+  /// Public: deposit destination for NNS-paid fees (registration / token packs).
+  getNnsDepositInfo: (user: principal) ->
+   (record {
+      note: text;
+      owner: principal;
+      subaccountHex: text;
+    }) query;
+  /// Latest notifications for the caller (newest first).
+  getNotifications: (limit: nat) -> (vec Notification) query;
+  getOwner: () -> (principal) query;
+  getPendingPayments: () -> (vec record {
+                                   nat;
+                                   PendingPayment;
+                                 }) query;
+  getPost: (postId: nat) -> (opt Post) query;
+  /// Category for a single post (defaults to General for older posts)
+  getPostCategory: (postId: nat) -> (text) query;
+  /// Public author page: empty if author is detached (use getPostsByAuthorForViewer when logged in).
+  getPostsByAuthor: (author: principal, limit: nat) -> (vec Post) query;
+  /// Author posts visible to caller: self, followers of detached authors, or anyone if not detached.
+  getPostsByAuthorForViewer: (author: principal, limit: nat) ->
+   (vec Post) query;
+  /// Optional: who owns a username (for debugging / lookups).
+  getPrincipalByUsername: (name: text) -> (opt principal) query;
+  getProfile: (user: principal) -> (opt UserProfile) query;
+  /// Public / anonymous discovery: never includes posts from detached (network-private) authors.
+  getRecentPosts: (limit: nat) -> (vec Post) query;
+  getReferralThreshold: () -> (nat) query;
+  getRegistrationFeeE8s: () -> (nat) query;
+  getReportedPosts: () -> (vec Post) query;
+  getSiteStats: () -> (SiteStats) query;
+  /// Token packs removed — always empty.
+  getSubscriptionOffers: () -> (vec SubOffer) query;
+  getTiers: () -> (vec nat) query;
+  getTipUnlockMinE8s: () -> (nat) query;
+  /// Legacy — returns message fee in e8s when enabled, else 0.
+  getTokensPerMessage: () -> (nat) query;
+  getTreasuryStats: () -> (TreasuryStats) query;
+  getUnreadMasterContactCount: () -> (nat) query;
+  getUnreadNotificationCount: () -> (nat) query;
+  getUserStats: (user: principal) ->
+   (opt
+     record {
+       icpE8s: nat;
+       isFreeTier: bool;
+       postsThisMonth: nat;
+       postsToday: nat;
+       tokens: nat;
+     }) query;
+  hasLiked: (postId: nat, user: principal) -> (bool) query;
+  hasLoved: (postId: nat, user: principal) -> (bool) query;
+  hasUnlockedTipping: (user: principal) -> (bool) query;
+  hideLitePost: (id: text) -> (LiteAdminWrite);
+  isBanned: (user: principal) -> (bool) query;
+  /// True if `me` has blocked `other` (caller-centric block list)
+  isBlocked: (me: principal, other: principal) -> (bool) query;
+  isCloaked: () -> (bool) query;
+  /// True if either side has blocked the other (content isolation)
+  isEitherBlocked: (a: principal, b: principal) -> (bool) query;
+  /// Whether the one-time Master Profile activation has already been used.
+  isLiteAdminClaimed: () -> (bool) query;
+  isMessagingFree: () -> (bool) query;
+  isOwner: (user: principal) -> (bool) query;
+  isOwnerVisible: (user: principal) -> (bool) query;
+  isPaymentsEnabled: () -> (bool) query;
+  isRegistered: (user: principal) -> (bool) query;
+  isRegistrationFeeEnabled: () -> (bool) query;
+  isTippingEnabled: () -> (bool) query;
+  isUserNetworkPrivate: (user: principal) -> (bool) query;
+  /// true if no one holds this username, or the caller already owns it.
+  isUsernameAvailable: (name: text) -> (bool) query;
+  likePost: (postId: nat) -> (bool);
+  lovePost: (postId: nat) -> (bool);
+  makePost: (content: text, imageURL: opt text, category: text) -> (opt nat);
+  markAllMasterContactsRead: () -> (text);
+  markAllNotificationsRead: () -> (text);
+  markMasterContactRead: (id: nat) -> (text);
+  markNotificationRead: (id: nat) -> (text);
+  /// Refund a message ICP charge if messaging canister rejected the send.
+  refundMessageCharge: () -> (bool);
+  /// Register with unique username. Master never pays.
+  register: (username: text, bio: text, avatarURL: text) -> (text);
+  /// Identity-linked invite: referralCode = inviter's II principal text (`?ref=`).
+  registerWithReferral: (username: text, bio: text, avatarURL: text,
+   referralCode: text) -> (text);
+  reportPost: (postId: nat) -> (text);
+  /// Legacy: record a manual purchase request (no ICP pulled). Prefer buyTokenPack.
+  requestPaidSubscription: (tokenAmount: nat) -> (text);
+  searchPosts: (keyword: text) -> (vec Post) query;
+  setCloak: (cloaked: bool) -> (bool);
+  setFeedBridgeOpen: (open: bool) -> (LiteAdminWrite);
+  /// Save which categories the caller wants to follow for the feed filter
+  setFollowedCategories: (cats: vec text) -> (text);
+  /// Save profile (registered users or master). Usernames are unique (case-insensitive).
+  setProfile: (username: text, bio: text, avatarURL: text) -> (text);
+  setSignupsOpen: (open: bool) -> (LiteAdminWrite);
+  /// Factory (or master): mark user posts as network-private after site detach; clear on reattach.
+  setUserNetworkPrivate: (user: principal, isPrivate: bool) -> (text);
+  spendTokens: (_amount: nat) -> (bool);
+  /// Deprecated — packs removed.
+  subscribe: (_tokenAmount: nat) -> (text);
+  /// Tip ICP: sender II must approve this canister; ICP is pulled then paid to recipient's II principal on the ledger.
+  /// Tipping anyone except master requires prior cumulative tips to master >= tipUnlockMinE8s.
+  tipIcp: (to: principal, amountE8s: nat) -> (text);
+  /// Legacy name — same as tipIcp (amount in e8s).
+  tipTokens: (to: principal, amount: nat) -> (text);
+  /// Master: move primary owner record (optional; trusted masters keep admin rights either way).
+  transferMasterProfile: (newOwner: principal) -> (text);
+  unbanLiteHandle: (handle: text) -> (LiteAdminWrite);
+  unblock: (target: principal) -> (text);
+  unfollow: (target: principal) -> (text);
+  unhideLitePost: (id: text) -> (LiteAdminWrite);
+  /// Founder: permanently delete every legacy master-contact note (cycle / inbox cleanup).
+  wipeAllMasterContacts: () -> (text);
+}

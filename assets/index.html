@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ICE Network | Decentralized Social Media, ICP Social Network &amp; Internet Computer Social</title>
+    <meta
+      name="description"
+      content="ICE on frostedblocks.com — decentralized social media and ICP social network. Internet Computer social, user-owned social, blockchain social media, no-algorithm social, data sovereignty social, canister social platform, Web3 social network, crypto social app, decentralized messaging, ICP dapp with Internet Identity login, user canister network, censorship-resistant social, on-chain social, sovereign social media, Motoko social."
+    />
+    <meta
+      name="keywords"
+      content="decentralized social media, ICP social network, Internet Computer social, user-owned social, blockchain social media, no-algorithm social, data sovereignty social, canister social platform, Web3 social network, crypto social app, decentralized messaging, ICP dapp, Internet Identity login, user canister network, censorship-resistant social, on-chain social, sovereign social media, Motoko social, ICE network, frostedblocks"
+    />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:title" content="ICE | Decentralized Social Media &amp; ICP Social Network on Internet Computer" />
+    <meta
+      property="og:description"
+      content="User-owned social and blockchain social media: no-algorithm social, data sovereignty social, canister social platform, Web3 social network, crypto social app, decentralized messaging, ICP dapp, Internet Identity login, censorship-resistant social, on-chain social. Sovereign social media built as Motoko social."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ICE | frostedblocks.com" />
+    <meta property="og:url" content="https://frostedblocks.com/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="ICE Network | Internet Computer Social &amp; Decentralized Social Media" />
+    <meta
+      name="twitter:description"
+      content="ICP social network and Internet Computer social — user-owned social, no-algorithm social, censorship-resistant social, on-chain social. ICP dapp with Internet Identity login."
+    />
+    <style>
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        background: #07070b;
+      }
+    </style>
+    <script>
+      // One brand URL for ICE app: canister / www → https://frostedblocks.com
+      // Login still uses derivationOrigin = canister so II principals stay unified.
+      // Do not redirect lite.* or personal custom domains.
+      (function () {
+        try {
+          var h = (location.hostname || "").toLowerCase();
+          var path = location.pathname + location.search + location.hash;
+          if (h === "www.frostedblocks.com") {
+            location.replace("https://frostedblocks.com" + path);
+            return;
+          }
+          if (
+            h === "6hhqv-baaaa-aaaan-q6mxq-cai.icp0.io" ||
+            h === "6hhqv-baaaa-aaaan-q6mxq-cai.ic0.app" ||
+            h === "6hhqv-baaaa-aaaan-q6mxq-cai.raw.icp0.io"
+          ) {
+            location.replace("https://frostedblocks.com" + path);
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

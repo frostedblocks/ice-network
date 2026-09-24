@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ICE Referral Program | Invite 15 Users — Free Join</title>
+    <meta
+      name="description"
+      content="ICE referral dashboard — register with Internet Identity only (no ICE account required). Invite 15 users who Join and get canister sites to unlock free Join + site. Bookmark this page to track progress."
+    />
+    <meta name="robots" content="index, follow" />
+    <style>
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: #07070b;
+        color: #e2e8f0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      .box {
+        max-width: 28rem;
+        margin: 15vh auto;
+        padding: 1.5rem;
+        text-align: center;
+      }
+      a { color: #7dd3fc; }
+    </style>
+    <script>
+      // Fallback if aliased SPA shell is missing — send to hash route on home.
+      (function () {
+        try {
+          // Prefer staying on /referral when the built SPA shell is deployed as referral.html
+          // (deploy copies dist/index.html → dist/referral.html). This file is only a backup.
+          if (!document.querySelector('script[type="module"]')) {
+            location.replace("/#/referral");
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="box">
+      <p>Opening ICE referral dashboard…</p>
+      <p><a href="/#/referral">Continue</a> · <a href="/">Home</a></p>
+    </div>
+  </body>
+</html>
