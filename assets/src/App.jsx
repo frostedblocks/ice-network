@@ -1171,6 +1171,7 @@ export default function App() {
                 <PostForm
                   actor={actor}
                   principal={identity.getPrincipal()}
+                  siteCanisterId={activeSiteId}
                   onPostCreated={() => {
                     setFeedRefreshKey((k) => k + 1);
                     setBalanceRefreshKey((k) => k + 1);

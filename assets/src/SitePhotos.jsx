@@ -425,7 +425,7 @@ export default function SitePhotos({ identity, siteCanisterId }) {
       >
         Upload up to 10 photos. Images are resized (max 1200px) and converted to WebP in your browser
         before upload (max 1.5 MB each). Only compressed WebP is stored on your site canister. You can
-        use one as a banner. Only you can manage them.
+        use one as a banner. Only you can manage them. Photos listed here are public on the internet — there is no private album yet.
       </p>
 
       <div
