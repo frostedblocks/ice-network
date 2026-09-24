@@ -10,17 +10,13 @@ import {
 } from "./actors";
 import { unwrapOpt } from "./candidUtils";
 import NnsIcpFee from "./NnsIcpFee";
-import InviteCard, { captureInviteRefFromUrl, readInviteRef, clearInviteRef } from "./InviteCard";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CANONICAL_APP_URL = "https://frostedblocks.com/";
 
 /**
- * First-time Join ICE (fee-at-mint):
- * 1) Gate on factory mint capacity (no pay if factory cannot mint)
- * 2) Free username register on ICE
- * 3) Approve 10 ICP mint fee to Factory (canister + network) if required
- * 4) ensureUserSite — Factory charges once; retries/resume do not re-charge
+ * Create username is free and calls ICE register only.
+ * Mint site is a separate button: approve 10 ICP (2.7 cycles / 7.3 network), then ensureUserSite.
  */
 export default function Register({ actor, identity, onRegistered, onCancel }) {
   const [username, setUsername] = useState("");
@@ -34,8 +30,6 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
   const [feeE8s, setFeeE8s] = useState(1_000_000_000); // 10 ICP mint default
   const [mintCyclesShareE8s, setMintCyclesShareE8s] = useState(270_000_000);
   const [mintNetworkOpsE8s, setMintNetworkOpsE8s] = useState(730_000_000);
-  const [bonusTokens, setBonusTokens] = useState(0);
-  const [anyActionFeeOn, setAnyActionFeeOn] = useState(false);
   const [isMaster, setIsMaster] = useState(false);
   const [cfgLoading, setCfgLoading] = useState(true);
   const [nnsFeeReady, setNnsFeeReady] = useState(false);
@@ -48,12 +42,6 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
   const [priorPrincipal, setPriorPrincipal] = useState("");
   const [priorLookup, setPriorLookup] = useState(null); // null | { ok, registered, siteId, error }
   const [priorLooking, setPriorLooking] = useState(false);
-  const [referralEligible, setReferralEligible] = useState(false);
-  const [referralClaimed, setReferralClaimed] = useState(false);
-  const [inviteRef] = useState(() => {
-    captureInviteRefFromUrl();
-    return readInviteRef();
-  });
 
   const loadCapacity = useCallback(async () => {
     try {
@@ -100,32 +88,6 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
         }
         setIsMaster(master);
 
-        if (actor.getMyReferralStatus) {
-          try {
-            const st = await actor.getMyReferralStatus();
-            setReferralEligible(!!st.eligible);
-            setReferralClaimed(!!st.claimed);
-          } catch (_) {
-            setReferralEligible(false);
-            setReferralClaimed(false);
-          }
-        }
-
-        if (actor.getEconomyConfig) {
-          try {
-            const cfg = await actor.getEconomyConfig();
-            setBonusTokens(Number(cfg.registrationBonusTokens) || 0);
-            const postOn = !!cfg.postFeeEnabled && Number(cfg.postFeeE8s ?? 0) > 0;
-            const loveOn = !!cfg.loveFeeEnabled && Number(cfg.loveFeeE8s ?? 0) > 0;
-            const msgOn = !!cfg.messageFeeEnabled && Number(cfg.messageFeeE8s ?? 0) > 0;
-            setAnyActionFeeOn(postOn || loveOn || msgOn);
-          } catch (_) {
-            setAnyActionFeeOn(false);
-          }
-        } else {
-          setAnyActionFeeOn(false);
-        }
-
         // Fee-at-mint: one 10 ICP charge on Factory, not ICE registration
         try {
           const factory = await createFactoryActor(identity);
@@ -158,8 +120,7 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
     })();
   }, [actor, identity, loadCapacity]);
 
-  const rewardFree = referralEligible && !referralClaimed;
-  const mustPay = !isMaster && feeEnabled && feeE8s > 0 && !rewardFree;
+  const mustPay = !isMaster && feeEnabled && feeE8s > 0;
   const feeIcp = (feeE8s / 100_000_000).toFixed(feeE8s % 100_000_000 === 0 ? 0 : 4);
   const cyclesIcp = (mintCyclesShareE8s / 100_000_000).toFixed(
     mintCyclesShareE8s % 100_000_000 === 0 ? 0 : 4
@@ -333,20 +294,12 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
 
     try {
       setStep(isMaster ? "Creating master account…" : "Creating free username…");
-      const refCode = inviteRef || "";
-      const result =
-        typeof actor.registerWithReferral === "function"
-          ? await actor.registerWithReferral(name, bio.trim(), "", refCode)
-          : await actor.register(name, bio.trim(), "");
+      const result = await actor.register(name, bio.trim(), "");
       const text = typeof result === "string" ? result : "";
-      if (/^Registered/i.test(text) || /referral reward/i.test(text)) {
-        clearInviteRef();
-      }
       const regOk =
         /^Registered/i.test(text) ||
         /success/i.test(text) ||
-        /Already registered/i.test(text) ||
-        /referral reward/i.test(text);
+        /Already registered/i.test(text);
       if (!regOk) {
         setError(text || "Registration failed.");
         setStep("");
@@ -354,10 +307,7 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
         return;
       }
       setRegisteredNoSite(true);
-      setStep("Username ready — mint a site when you want (optional).");
-      if (onRegistered) {
-        onRegistered({ registered: true, siteId: null });
-      }
+      setStep("Username ready. Mint a site if you want, or continue to the feed.");
     } catch (err) {
       console.error(err);
       setError(err?.message || "Registration failed.");
@@ -429,59 +379,6 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
         padding: "1.5rem",
       }}
     >
-      {(() => {
-        try {
-          return sessionStorage.getItem("ice-referral-signup") === "1";
-        } catch {
-          return false;
-        }
-      })() && (
-        <div
-          style={{
-            marginBottom: "0.85rem",
-            padding: "0.75rem 0.85rem",
-            borderRadius: 12,
-            background:
-              "linear-gradient(155deg, rgba(8, 24, 42, 0.9), rgba(30, 27, 55, 0.75))",
-            border: "1px solid rgba(125, 211, 252, 0.4)",
-            boxShadow: "0 0 24px rgba(56, 189, 248, 0.12)",
-            color: "#bae6fd",
-            fontSize: "0.85rem",
-            lineHeight: 1.45,
-          }}
-        >
-          <strong style={{ color: "#e0f2fe" }}>ICE referral program</strong>
-          <div style={{ marginTop: "0.35rem" }}>
-            You&apos;re registered with Internet Identity. Copy your invite link below, share it,
-            and when 15 users Join and get canister sites through your link, come back here for{" "}
-            <strong style={{ color: "#7dd3fc" }}>free Join + site</strong>. You do not need to pay
-            Join to start inviting.
-          </div>
-        </div>
-      )}
-      <InviteCard actor={actor} identity={identity} />
-      {rewardFree && (
-        <div
-          style={{
-            marginBottom: "0.85rem",
-            padding: "0.65rem 0.75rem",
-            borderRadius: 10,
-            background: "rgba(22, 101, 52, 0.35)",
-            border: "1px solid rgba(74, 222, 128, 0.4)",
-            color: "#86efac",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-          }}
-        >
-          Referral reward unlocked — free Join + website (no ICP).
-        </div>
-      )}
-      {inviteRef && !rewardFree && (
-        <p style={{ margin: "0 0 0.75rem", fontSize: "0.78rem", color: "#94a3b8" }}>
-          Joining via invite{" "}
-          <code style={{ color: "#cbd5e1" }}>{inviteRef.slice(0, 14)}…</code>
-        </p>
-      )}
       <h2 className="ice-title" style={{ marginTop: 0 }}>
         Create your account
       </h2>
@@ -724,7 +621,7 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
       </div>
       <p style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.5 }}>
         {isMaster ? (
-          <>Master account — registration is free. Your personal website canister is created next.</>
+          <>Master account — username is free. Minting a site is a separate step.</>
         ) : (
           <>
             Username is free. Personal site mint
@@ -750,13 +647,10 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
             Approve {feeIcp} ICP mint fee to Factory ({cyclesIcp} cycles / {opsIcp} network)
           </li>
         )}
-        <li>Optional: Mint site (separate click, 10 ICP when fees are on)</li>
+        <li>Optional: Mint site (separate click — {feeIcp} ICP, {cyclesIcp} cycles / {opsIcp} network)</li>
       </ol>
       <p style={{ color: "#475569", fontSize: "0.75rem", lineHeight: 1.45 }}>
-        After joining you can tip others in ICP (when tipping is enabled) from profiles.
-        {anyActionFeeOn
-          ? " Deposit ICP under the ICP tab for post, love, or message fees."
-          : null}
+        After a username you can post, and tip others in ICP from profiles when tipping is enabled.
       </p>
 
       {isMaster && (
@@ -892,8 +786,20 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
             : mustPay && !nnsFeeReady
             ? `Approve ${feeIcp} ICP, then mint site`
             : mustPay
-            ? `Mint site (${feeIcp} ICP)`
+            ? `Mint site (${feeIcp} ICP · ${cyclesIcp} / ${opsIcp})`
             : "Mint site (free for you)"}
+        </button>
+      )}
+
+      {registeredNoSite && onRegistered && (
+        <button
+          type="button"
+          className="ice-btn"
+          disabled={loading}
+          onClick={() => onRegistered({ registered: true, siteId: siteId || null })}
+          style={{ width: "100%", marginTop: "0.55rem" }}
+        >
+          Continue without minting
         </button>
       )}
 

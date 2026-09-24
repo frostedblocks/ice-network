@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
 import PostCard from "./PostCard";
-import FollowButton from "./FollowButton";
 import NnsIcpFee from "./NnsIcpFee";
 import { getIceCanisterId } from "./icpLedger";
 
@@ -35,77 +34,10 @@ function formatTipMessage(raw) {
   return s;
 }
 
-function UnlockProgress({ tipUnlock }) {
-  if (!tipUnlock) return null;
-  const required = Math.max(0, Number(tipUnlock.requiredE8s) || 0);
-  const paid = Math.max(0, Number(tipUnlock.paidToMasterE8s) || 0);
-  const remaining = Math.max(0, required - paid);
-  const pct = required > 0 ? Math.min(100, Math.round((paid / required) * 100)) : 100;
-  const unlocked = !!tipUnlock.unlocked || remaining === 0;
-
-  return (
-    <div
-      style={{
-        margin: "0 0 0.65rem",
-        padding: "0.55rem 0.65rem",
-        borderRadius: 10,
-        background: "rgba(0,0,0,0.28)",
-        border: "1px solid rgba(148,163,184,0.18)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "0.5rem",
-          fontSize: "0.72rem",
-          color: "#94a3b8",
-          marginBottom: "0.35rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <span>
-          Unlock progress:{" "}
-          <strong style={{ color: "#e2e8f0" }}>{e8sLabel(paid)}</strong>
-          {" / "}
-          <strong style={{ color: "#e2e8f0" }}>{e8sLabel(required)}</strong> ICP
-        </span>
-        <span style={{ color: unlocked ? "#86efac" : "#fde68a" }}>
-          {unlocked ? "Unlocked" : `${e8sLabel(remaining)} ICP left`}
-        </span>
-      </div>
-      <div
-        style={{
-          height: 6,
-          borderRadius: 999,
-          background: "rgba(148,163,184,0.2)",
-          overflow: "hidden",
-        }}
-        role="progressbar"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label="Tip unlock progress"
-      >
-        <div
-          style={{
-            width: `${pct}%`,
-            height: "100%",
-            background: unlocked
-              ? "linear-gradient(90deg, #4ade80, #86efac)"
-              : "linear-gradient(90deg, #38bdf8, #a78bfa)",
-            transition: "width 0.25s ease",
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
 /**
  * Public profile page for any user.
- * Shows avatar, username, bio, follow/block actions, and their posts.
- * Tip unlock: tip master first; locked profiles offer one-tap Open master.
+ * Shows avatar, username, bio, and their posts.
+ * ICP tip form shows when tipping is enabled — no unlock gate.
  */
 export default function UserProfileView({
   actor,
@@ -120,16 +52,11 @@ export default function UserProfileView({
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [eitherBlocked, setEitherBlocked] = useState(false);
-  const [assocCounts, setAssocCounts] = useState({ following: 0, followers: 0 });
   const [tipAmount, setTipAmount] = useState("0.01");
   const [tipMsg, setTipMsg] = useState("");
   const [tipBusy, setTipBusy] = useState(false);
   const [tipFeeReady, setTipFeeReady] = useState(false);
-  const [tipUnlock, setTipUnlock] = useState(null); // { unlocked, paidToMasterE8s, requiredE8s }
-  const [profileIsMaster, setProfileIsMaster] = useState(false);
   const [tippingEnabled, setTippingEnabled] = useState(true);
-  const [masterPrincipal, setMasterPrincipal] = useState(null);
-  const [masterNavOk, setMasterNavOk] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -174,28 +101,6 @@ export default function UserProfileView({
         setPosts(postsResult || []);
 
         try {
-          if (actor.getAssociates) {
-            const a = await actor.getAssociates(principal);
-            setAssocCounts({
-              following: Array.isArray(a?.following) ? a.following.length : 0,
-              followers: Array.isArray(a?.followers) ? a.followers.length : 0,
-            });
-          }
-        } catch (_) {
-          /* optional */
-        }
-
-        try {
-          if (actor.isOwner) {
-            setProfileIsMaster(!!(await actor.isOwner(principal)));
-          } else {
-            setProfileIsMaster(false);
-          }
-        } catch (_) {
-          setProfileIsMaster(false);
-        }
-
-        try {
           if (actor.getEconomyConfig) {
             const cfg = await actor.getEconomyConfig();
             setTippingEnabled(cfg.tippingEnabled !== false);
@@ -206,54 +111,6 @@ export default function UserProfileView({
           }
         } catch (_) {
           setTippingEnabled(true);
-        }
-
-        try {
-          if (currentUserPrincipal && actor.getMyTipUnlockStatus) {
-            const st = await actor.getMyTipUnlockStatus();
-            setTipUnlock({
-              unlocked: !!st.unlocked,
-              paidToMasterE8s: Number(st.paidToMasterE8s ?? 0),
-              requiredE8s: Number(st.requiredE8s ?? 1_000_000),
-            });
-          } else if (currentUserPrincipal && actor.hasUnlockedTipping) {
-            const u = !!(await actor.hasUnlockedTipping(currentUserPrincipal));
-            setTipUnlock({ unlocked: u, paidToMasterE8s: 0, requiredE8s: 1_000_000 });
-          } else {
-            setTipUnlock(null);
-          }
-        } catch (_) {
-          setTipUnlock(null);
-        }
-
-        // Resolve master for "Open master profile" CTA
-        try {
-          if (actor.getOwner) {
-            const owner = await actor.getOwner();
-            setMasterPrincipal(owner || null);
-            let visible = true;
-            if (actor.isOwnerVisible && owner) {
-              try {
-                visible = !!(await actor.isOwnerVisible(owner));
-              } catch (_) {
-                visible = true;
-              }
-            }
-            if (actor.isCloaked) {
-              try {
-                if (!!(await actor.isCloaked())) visible = false;
-              } catch (_) {
-                /* keep prior */
-              }
-            }
-            setMasterNavOk(!!owner && visible);
-          } else {
-            setMasterPrincipal(null);
-            setMasterNavOk(false);
-          }
-        } catch (_) {
-          setMasterPrincipal(null);
-          setMasterNavOk(false);
         }
       } catch (err) {
         console.error(err);
@@ -300,40 +157,11 @@ export default function UserProfileView({
       setTipMsg(formatTipMessage(typeof text === "string" ? text : "Tip sent."));
       setTipFeeReady(false);
       if (onIcpChanged) onIcpChanged();
-      try {
-        if (actor.getMyTipUnlockStatus) {
-          const st = await actor.getMyTipUnlockStatus();
-          setTipUnlock({
-            unlocked: !!st.unlocked,
-            paidToMasterE8s: Number(st.paidToMasterE8s ?? 0),
-            requiredE8s: Number(st.requiredE8s ?? 1_000_000),
-          });
-        }
-      } catch (_) {
-        /* optional */
-      }
     } catch (e) {
       setTipMsg(formatTipMessage(e?.message || "Tip failed."));
     } finally {
       setTipBusy(false);
     }
-  };
-
-  const tippingUnlocked = !!tipUnlock?.unlocked;
-  const canTipThisProfile = profileIsMaster || tippingUnlocked;
-  const unlockNeedIcp = tipUnlock
-    ? e8sLabel(Math.max(0, tipUnlock.requiredE8s - tipUnlock.paidToMasterE8s))
-    : "0.01";
-  const showUnlockProgress = tipUnlock && !tippingUnlocked;
-
-  const viewingMasterAlready =
-    masterPrincipal &&
-    principal &&
-    masterPrincipal.toString() === principal.toString();
-
-  const openMasterProfile = () => {
-    if (!masterPrincipal || !onUserClick || viewingMasterAlready) return;
-    onUserClick(masterPrincipal);
   };
 
   const handleCopyPrincipal = async () => {
@@ -409,28 +237,7 @@ export default function UserProfileView({
             >
               {username || truncatePrincipal(principalText, 10, 6)}
             </h2>
-
-            {!isSelf && (
-              <FollowButton
-                actor={actor}
-                targetPrincipal={principal}
-                currentUserPrincipal={currentUserPrincipal}
-                showBlock
-                frostedPills
-                onChanged={async () => {
-                  if (actor.isEitherBlocked) {
-                    const b = await actor.isEitherBlocked(currentUserPrincipal, principal);
-                    setEitherBlocked(!!b);
-                    if (b) setPosts([]);
-                  }
-                }}
-              />
-            )}
           </div>
-
-          <p style={{ margin: "0.45rem 0 0 0", fontSize: "0.8rem", color: "#94a3b8" }}>
-            {assocCounts.followers} followers · {assocCounts.following} following
-          </p>
 
           {!isSelf &&
             !eitherBlocked &&
@@ -443,110 +250,53 @@ export default function UserProfileView({
                 marginTop: "0.85rem",
                 padding: "0.75rem 0.85rem",
                 borderRadius: 12,
-                border: canTipThisProfile
-                  ? "1px solid rgba(125, 211, 252, 0.22)"
-                  : "1px solid rgba(251, 191, 36, 0.35)",
+                border: "1px solid rgba(125, 211, 252, 0.22)",
                 background: "rgba(14, 16, 28, 0.45)",
               }}
             >
               <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#7dd3fc", marginBottom: "0.4rem" }}>
-                {profileIsMaster ? "TIP MASTER (UNLOCKS NETWORK TIPPING)" : "TIP ICP TO THEIR II"}
+                TIP ICP TO THEIR II
               </div>
-
-              {showUnlockProgress && <UnlockProgress tipUnlock={tipUnlock} />}
-
-              {!canTipThisProfile ? (
-                <>
-                  <p style={{ margin: 0, fontSize: "0.8rem", color: "#fde68a", lineHeight: 1.45 }}>
-                    Tipping is locked until you tip the <strong>master profile</strong> at least{" "}
-                    {tipUnlock ? e8sLabel(tipUnlock.requiredE8s) : "0.01"} ICP total
-                    {tipUnlock && tipUnlock.paidToMasterE8s > 0
-                      ? ` (you’ve sent ${e8sLabel(tipUnlock.paidToMasterE8s)} ICP — ${unlockNeedIcp} ICP left)`
-                      : ""}
-                    . ICP goes to their Internet Identity ledger account.
-                  </p>
-                  {masterNavOk && onUserClick && !viewingMasterAlready ? (
-                    <button
-                      type="button"
-                      className="ice-btn-primary"
-                      onClick={openMasterProfile}
-                      style={{ marginTop: "0.65rem", width: "100%" }}
-                    >
-                      Open master profile
-                    </button>
-                  ) : (
-                    <p style={{ margin: "0.55rem 0 0", fontSize: "0.75rem", color: "#94a3b8" }}>
-                      Ask for the founder profile to unlock tipping, then tip them there.
-                    </p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p style={{ margin: "0 0 0.55rem", fontSize: "0.75rem", color: "#94a3b8", lineHeight: 1.4 }}>
-                    {profileIsMaster ? (
-                      tippingUnlocked ? (
-                        <>
-                          Network tipping unlocked. Tips still go to the master’s II ledger account.
-                        </>
-                      ) : (
-                        <>
-                          Tip the master to unlock tipping anyone. Need{" "}
-                          <strong style={{ color: "#e2e8f0" }}>{unlockNeedIcp} ICP</strong> more
-                          (cumulative). ICP goes to their II ledger account.
-                        </>
-                      )
-                    ) : (
-                      <>
-                        Approve with your Internet Identity, then send. ICP goes to their II ledger
-                        account — not prepaid balance.
-                      </>
-                    )}
-                  </p>
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.45rem" }}>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={tipAmount}
-                      onChange={(e) => {
-                        setTipAmount(e.target.value);
-                        setTipFeeReady(false);
-                      }}
-                      disabled={tipBusy}
-                      className="ice-user-tip-input"
-                      aria-label="Tip amount in ICP"
-                      placeholder="0.01"
-                    />
-                    <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>ICP</span>
-                  </div>
-                  {tipE8s > 0n && (
-                    <div style={{ marginTop: "0.55rem" }}>
-                      <NnsIcpFee
-                        key={tipE8s.toString()}
-                        identity={identity}
-                        feeE8s={tipE8s}
-                        spenderCanisterId={getIceCanisterId()}
-                        purpose="tip"
-                        onReadyChange={onTipFeeReady}
-                      />
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    className="ice-user-tip-btn"
-                    disabled={tipBusy || !tipFeeReady || tipE8s <= 0n}
-                    onClick={handleTip}
-                    style={{ marginTop: "0.45rem" }}
-                  >
-                    {tipBusy
-                      ? "Sending…"
-                      : profileIsMaster
-                      ? tippingUnlocked
-                        ? "Send tip to master II"
-                        : "Tip master (unlock)"
-                      : "Send tip to their II"}
-                  </button>
-                </>
+              <p style={{ margin: "0 0 0.55rem", fontSize: "0.75rem", color: "#94a3b8", lineHeight: 1.4 }}>
+                Approve with your Internet Identity, then send. ICP goes to their II ledger account.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.45rem" }}>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={tipAmount}
+                  onChange={(e) => {
+                    setTipAmount(e.target.value);
+                    setTipFeeReady(false);
+                  }}
+                  disabled={tipBusy}
+                  className="ice-user-tip-input"
+                  aria-label="Tip amount in ICP"
+                  placeholder="0.01"
+                />
+                <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>ICP</span>
+              </div>
+              {tipE8s > 0n && (
+                <div style={{ marginTop: "0.55rem" }}>
+                  <NnsIcpFee
+                    key={tipE8s.toString()}
+                    identity={identity}
+                    feeE8s={tipE8s}
+                    spenderCanisterId={getIceCanisterId()}
+                    purpose="tip"
+                    onReadyChange={onTipFeeReady}
+                  />
+                </div>
               )}
+              <button
+                type="button"
+                className="ice-user-tip-btn"
+                disabled={tipBusy || !tipFeeReady || tipE8s <= 0n}
+                onClick={handleTip}
+                style={{ marginTop: "0.45rem" }}
+              >
+                {tipBusy ? "Sending…" : "Send tip"}
+              </button>
               {tipMsg && (
                 <p style={{ margin: "0.45rem 0 0", fontSize: "0.78rem", color: "#94a3b8" }}>
                   {tipMsg}

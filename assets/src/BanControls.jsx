@@ -76,7 +76,7 @@ export default function BanControls({ actor }) {
         Ban / unban user
       </label>
       <p style={{ margin: "0 0 0.6rem 0", fontSize: "0.8rem", color: "#64748b" }}>
-        Banned users cannot post, comment, like, love, report, or follow.
+        Banned users cannot post, comment, like, love, or report.
       </p>
 
       <form onSubmit={handleBan} style={{ marginBottom: "0.75rem" }}>

@@ -1,6 +1,5 @@
 import { Actor, HttpAgent } from "@dfinity/agent";
 import { idlFactory as iceIdl } from "./declarations/ice/ice.did.js";
-import { idlFactory as messagingIdl } from "./declarations/messaging/messaging.did.js";
 import { idlFactory as factoryIdl } from "./declarations/factory/factory.did.js";
 import { idlFactory as userSiteIdl } from "./declarations/user_site/user_site.did.js";
 
@@ -22,12 +21,6 @@ export const ICE_CANISTER_ID =
   import.meta.env.VITE_CANISTER_ID_ICE ||
   import.meta.env.CANISTER_ID_ICE ||
   "6jf55-2qaaa-aaaan-q6mwq-cai";
-
-/** Mainnet messaging */
-export const MESSAGING_CANISTER_ID =
-  import.meta.env.VITE_CANISTER_ID_MESSAGING ||
-  import.meta.env.CANISTER_ID_MESSAGING ||
-  "6agwb-myaaa-aaaan-q6mxa-cai";
 
 /** Brand hosts that run the main ICE app (not per-user personal sites). */
 const MAIN_APP_HOSTS = new Set([
@@ -80,24 +73,6 @@ export async function createAnonymousIceActor() {
     await agent.fetchRootKey();
   }
   return Actor.createActor(iceIdl, { agent, canisterId });
-}
-
-export async function createMessagingActor(identity) {
-  const canisterId = MESSAGING_CANISTER_ID;
-  const agent = await makeAgent(identity);
-  return Actor.createActor(messagingIdl, { agent, canisterId });
-}
-
-/** Anonymous messaging actor for public guest contact (pre-sign-in). */
-export async function createAnonymousMessagingActor() {
-  const canisterId = MESSAGING_CANISTER_ID;
-  const host = getHost();
-  const agent = await HttpAgent.create({ host });
-  const network = import.meta.env.DFX_NETWORK || import.meta.env.VITE_DFX_NETWORK || "local";
-  if (network !== "ic") {
-    await agent.fetchRootKey();
-  }
-  return Actor.createActor(messagingIdl, { agent, canisterId });
 }
 
 export async function createFactoryActor(identity) {

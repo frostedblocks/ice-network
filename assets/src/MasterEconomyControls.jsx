@@ -4,8 +4,8 @@ import { invalidateActionFeesCache } from "./useActionFees";
 /**
  * Master-only ICP economy:
  * - Join fee (II → ICE)
- * - Action fees from prepaid ICP (post / love / message)
- * - Tipping (II → recipient II; unlock gate)
+ * - Action fees from prepaid ICP (post / love)
+ * - Tipping on/off (II → recipient II)
  */
 export default function MasterEconomyControls({ actor }) {
   const [loading, setLoading] = useState(true);
@@ -22,7 +22,6 @@ export default function MasterEconomyControls({ actor }) {
   const [postIcp, setPostIcp] = useState("0");
   const [loveIcp, setLoveIcp] = useState("0");
   const [messageIcp, setMessageIcp] = useState("0");
-  const [tipUnlockIcp, setTipUnlockIcp] = useState("0.01");
   const [tippingOn, setTippingOn] = useState(true);
 
   const e8sToIcp = (e8s) => {
@@ -58,15 +57,6 @@ export default function MasterEconomyControls({ actor }) {
       setLoveIcp(e8sToIcp(cfg.loveFeeE8s ?? 0));
       setMessageIcp(e8sToIcp(cfg.messageFeeE8s ?? 0));
       setTippingOn(cfg.tippingEnabled !== false);
-      if (cfg.tipUnlockMinE8s != null) {
-        setTipUnlockIcp(e8sToIcp(cfg.tipUnlockMinE8s));
-      } else if (actor.getTipUnlockMinE8s) {
-        try {
-          setTipUnlockIcp(e8sToIcp(await actor.getTipUnlockMinE8s()));
-        } catch (_) {
-          /* optional */
-        }
-      }
     } catch (e) {
       console.error(e);
       setErr("Could not load economy settings.");
@@ -114,6 +104,7 @@ export default function MasterEconomyControls({ actor }) {
     setMsg("");
     setErr("");
     try {
+      // No DM fee row — pass the loaded message fee so this save does not clear it.
       const result = await actor.adminSetActionFees(
         postOn,
         icpToE8s(postIcp),
@@ -182,8 +173,8 @@ export default function MasterEconomyControls({ actor }) {
     <div className="ice-glass-soft" style={{ padding: "1rem", marginTop: "0.75rem" }}>
       <h3 style={{ margin: "0 0 0.35rem", color: "#f8fafc", fontSize: "1rem" }}>ICP economy</h3>
       <p style={{ margin: "0 0 0.85rem", color: "#64748b", fontSize: "0.8rem", lineHeight: 1.45 }}>
-        Soft token packs are gone. Members use real ICP: join fee and tips via Internet Identity;
-        post / love / message fees (when on) spend prepaid ICP deposited under the ICP tab.
+        Username registration is free. Optional site mint is 10 ICP on Factory. Post and love fees
+        (when on) spend prepaid ICP. Tipping can be turned on or off below.
       </p>
 
       <div style={{ marginBottom: "1.15rem" }}>
@@ -221,7 +212,6 @@ export default function MasterEconomyControls({ actor }) {
         </p>
         {feeRow("Post", "After free tier is used up", postOn, setPostOn, postIcp, setPostIcp)}
         {feeRow("Love", null, loveOn, setLoveOn, loveIcp, setLoveIcp)}
-        {feeRow("Message", "DMs only (guest replies stay free)", msgOn, setMsgOn, messageIcp, setMessageIcp)}
         <button
           type="button"
           className="ice-btn-primary"
@@ -275,43 +265,6 @@ export default function MasterEconomyControls({ actor }) {
           />
           Tipping enabled
         </label>
-        {tippingOn && (
-          <>
-            <p style={{ margin: "0 0 0.45rem", color: "#64748b", fontSize: "0.78rem", lineHeight: 1.4 }}>
-              Unlock gate: members must tip the master this much ICP (cumulative) before tipping
-              anyone else.
-            </p>
-            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-              <input
-                value={tipUnlockIcp}
-                onChange={(e) => setTipUnlockIcp(e.target.value)}
-                style={inputStyle}
-              />
-              <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>ICP</span>
-              <button
-                type="button"
-                className="ice-btn"
-                disabled={saving || !actor?.adminSetTipUnlockMinE8s}
-                onClick={async () => {
-                  setSaving(true);
-                  setMsg("");
-                  setErr("");
-                  try {
-                    const r = await actor.adminSetTipUnlockMinE8s(icpToE8s(tipUnlockIcp));
-                    setMsg(typeof r === "string" ? r : "Saved.");
-                    await load();
-                  } catch (e) {
-                    setErr(e?.message || "Failed to save tip unlock.");
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-              >
-                Save unlock min
-              </button>
-            </div>
-          </>
-        )}
       </div>
 
       {msg && <p style={{ color: "#86efac", fontSize: "0.82rem", marginTop: "0.75rem" }}>{msg}</p>}

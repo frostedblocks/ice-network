@@ -244,7 +244,7 @@ export default function AdminLite({ actor, identity, onBack }) {
           BAN HANDLE
         </div>
         <p style={{ margin: "0 0 0.45rem", fontSize: "0.75rem", color: "#64748b" }}>
-          Lite handles look like <code>u123</code>. Banned users cannot post, follow, or message.
+          Lite handles look like <code>u123</code>. Banned users cannot post.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem" }}>
           <input

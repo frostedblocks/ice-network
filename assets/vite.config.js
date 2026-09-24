@@ -23,7 +23,6 @@ function readCanisterIds(network) {
       };
       return {
         ice: pick(ids.ice),
-        messaging: pick(ids.messaging),
         internet_identity: pick(ids.internet_identity),
         assets: pick(ids.assets),
         source: idsPath,
@@ -59,8 +58,6 @@ function canisterIdsPlugin() {
       const envLocal = readEnvLocal();
 
       const ice = process.env.CANISTER_ID_ICE || ids.ice || envLocal.ice;
-      const messaging =
-        process.env.CANISTER_ID_MESSAGING || ids.messaging || envLocal.messaging;
       const ii =
         process.env.CANISTER_ID_INTERNET_IDENTITY ||
         ids.internet_identity ||
@@ -72,19 +69,16 @@ function canisterIdsPlugin() {
       if (ice) {
         define["import.meta.env.VITE_CANISTER_ID_ICE"] = JSON.stringify(ice);
       }
-      if (messaging) {
-        define["import.meta.env.VITE_CANISTER_ID_MESSAGING"] = JSON.stringify(messaging);
-      }
       if (ii) {
         define["import.meta.env.VITE_CANISTER_ID_INTERNET_IDENTITY"] = JSON.stringify(ii);
       }
 
-      if (network === "ic" && (!ice || !messaging)) {
+      if (network === "ic" && !ice) {
         console.warn(
-          "[vite] Missing ice/messaging canister IDs for mainnet build. Deploy backends first, then rebuild."
+          "[vite] Missing ice canister ID for mainnet build. Deploy the backend first, then rebuild."
         );
       } else {
-        console.log(`[vite] DFX_NETWORK=${network} ice=${ice || "?"} messaging=${messaging || "?"}`);
+        console.log(`[vite] DFX_NETWORK=${network} ice=${ice || "?"}`);
       }
 
       return { define };

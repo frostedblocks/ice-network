@@ -10,16 +10,13 @@ import MasterSiteTransfer from "./MasterSiteTransfer";
 import MasterSiteResets from "./MasterSiteResets";
 import CycleBalance from "./CycleBalance";
 import MasterLiteActivate from "./MasterLiteActivate";
-import MasterReferralTracker from "./MasterReferralTracker";
 
 import { unwrapOpt } from "./candidUtils";
-import { CATEGORIES, categoryStyle } from "./categories";
 import { createFactoryActor } from "./actors";
 import SitePhotos from "./SitePhotos";
 
 const MASTER_TABS = [
   { id: "overview", label: "Overview" },
-  { id: "invites", label: "Invites" },
   { id: "users", label: "Users" },
   { id: "economy", label: "Economy" },
   { id: "hosting", label: "Hosting" },
@@ -64,11 +61,6 @@ export default function Profile({ actor, identity }) {
   const [ownerPrincipal, setOwnerPrincipal] = useState(null);
   const [claiming, setClaiming] = useState(false);
 
-  const [allCategories, setAllCategories] = useState(CATEGORIES);
-  const [followedCats, setFollowedCats] = useState([]);
-  const [savingCats, setSavingCats] = useState(false);
-  const [catsMsg, setCatsMsg] = useState("");
-  const [catsErr, setCatsErr] = useState("");
   const [mySiteCanisterId, setMySiteCanisterId] = useState("");
 
   const [grantTo, setGrantTo] = useState("");
@@ -118,23 +110,6 @@ export default function Profile({ actor, identity }) {
       setIsMaster(!!ownerFlag);
       setOwnerPrincipal(owner);
       setCloaked(!!cloakFlag);
-
-      try {
-        if (actor.getCategories) {
-          const list = await actor.getCategories();
-          if (Array.isArray(list) && list.length) setAllCategories(list);
-        }
-      } catch (_) {
-        /* keep defaults */
-      }
-      try {
-        if (actor.getFollowedCategories) {
-          const list = await actor.getFollowedCategories(principal);
-          setFollowedCats(Array.isArray(list) ? list : []);
-        }
-      } catch (_) {
-        setFollowedCats([]);
-      }
 
       try {
         const factory = await createFactoryActor(identity);
@@ -189,38 +164,6 @@ export default function Profile({ actor, identity }) {
       setError(err?.message || "Failed to save profile.");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const toggleFollowedCat = (cat) => {
-    setFollowedCats((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-    );
-    setCatsMsg("");
-    setCatsErr("");
-  };
-
-  const handleSaveCategories = async () => {
-    if (!actor || !actor.setFollowedCategories) {
-      setCatsErr("Categories not available yet — wait for deploy.");
-      return;
-    }
-    setSavingCats(true);
-    setCatsMsg("");
-    setCatsErr("");
-    try {
-      const result = await actor.setFollowedCategories(followedCats);
-      const text = typeof result === "string" ? result : "Saved";
-      if (/saved/i.test(text)) {
-        setCatsMsg(text);
-      } else {
-        setCatsErr(text || "Could not save.");
-      }
-    } catch (err) {
-      console.error(err);
-      setCatsErr(err?.message || "Failed to save categories.");
-    } finally {
-      setSavingCats(false);
     }
   };
 
@@ -554,65 +497,6 @@ export default function Profile({ actor, identity }) {
           </form>
         </section>
 
-        {/* ── Preferences ── */}
-        <section className="ice-profile-card">
-          <div className="ice-profile-card-head">
-            <h3>Preferences</h3>
-            <p>Feed topics and social lists.</p>
-          </div>
-
-          <div className="ice-profile-pref-block">
-            <div className="ice-profile-pref-label">Associates</div>
-            <p className="ice-profile-pref-desc">
-              Following, followers, and blocked accounts live under{" "}
-              <strong>Associates</strong> in the top bar.
-            </p>
-          </div>
-
-          <div className="ice-profile-pref-block">
-            <div className="ice-profile-pref-label">Followed categories</div>
-            <p className="ice-profile-pref-desc">
-              Used by the feed’s <strong>Following</strong> filter. Default still shows all posts.
-            </p>
-            <div className="ice-profile-cat-row">
-              {allCategories.map((cat) => {
-                const on = followedCats.includes(cat);
-                const s = categoryStyle(cat);
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    className={`ice-cat-chip${on ? " is-on" : ""}`}
-                    onClick={() => toggleFollowedCat(cat)}
-                    style={
-                      on
-                        ? {
-                            borderColor: s.border,
-                            background: s.bg,
-                            color: s.color,
-                          }
-                        : undefined
-                    }
-                  >
-                    {on ? "✓ " : ""}
-                    {cat}
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              className="ice-btn-primary"
-              onClick={handleSaveCategories}
-              disabled={savingCats}
-            >
-              {savingCats ? "Saving…" : "Save categories"}
-            </button>
-            {catsMsg && <p className="ice-inline-ok">{catsMsg}</p>}
-            {catsErr && <p className="ice-inline-err">{catsErr}</p>}
-          </div>
-        </section>
-
         {/* ── Photos (user canister storage; ICE keeps links only) ── */}
         <SitePhotos identity={identity} siteCanisterId={mySiteCanisterId} />
       </div>
@@ -679,12 +563,6 @@ export default function Profile({ actor, identity }) {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {masterTab === "invites" && (
-              <div className="ice-master-pane">
-                <MasterReferralTracker actor={actor} />
               </div>
             )}
 

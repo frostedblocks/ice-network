@@ -316,7 +316,7 @@ persistent actor class Factory() = this {
     };
   } = actor ("6jf55-2qaaa-aaaan-q6mwq-cai");
 
-  /// Fee-at-mint: waive site mint fee (masters / referral unlock).
+  /// Fee-at-mint: waive site mint fee for ICE master only (no referral waiver).
   private transient let ICE_MINT_FEE : actor {
     isMintFeeWaived : shared query Principal -> async Bool;
   } = actor ("6jf55-2qaaa-aaaan-q6mwq-cai");
@@ -1076,48 +1076,6 @@ persistent actor class Factory() = this {
       # Nat.toText(failed)
   };
 
-  /// Owner: reassign a site canister to a different II (principal mismatch recovery).
-  /// Does not mint a new canister — moves factory index only.
-  public shared(msg) func adminReassignSite(site : Principal, newOwner : Principal) : async Text {
-    if (not isOwner(msg.caller)) { return "Not authorized" };
-    if (Principal.isAnonymous(newOwner) or Principal.isAnonymous(site)) {
-      return "Invalid principal";
-    };
-    // Unlink any other user currently pointing at this site
-    for ((u, c) in userCanisters.entries()) {
-      if (Principal.equal(c, site) and not Principal.equal(u, newOwner)) {
-        userCanisters.delete(u);
-      };
-    };
-    // If newOwner had a different site linked, keep lastSite but drop live link
-    switch (userCanisters.get(newOwner)) {
-      case (?other) {
-        if (not Principal.equal(other, site)) {
-          lastSite.put(newOwner, other);
-          userCanisters.delete(newOwner);
-        };
-      };
-      case null {};
-    };
-    userCanisters.put(newOwner, site);
-    lastSite.put(newOwner, site);
-    siteOwners.put(site, newOwner);
-    activeSubs.put(site, true);
-    switch (await registerMintWithRegistry(site, newOwner)) {
-      case (?err) {
-        return "Site reassigned to "
-          # Principal.toText(newOwner)
-          # " but Registry update failed: "
-          # err;
-      };
-      case null {};
-    };
-    "Site "
-      # Principal.toText(site)
-      # " reassigned to "
-      # Principal.toText(newOwner)
-  };
-
   public query func getFactoryCycles() : async Nat {
     ExperimentalCycles.balance()
   };
@@ -1365,14 +1323,11 @@ persistent actor class Factory() = this {
     code
   };
 
-  /// Production default controllers:
-  ///   1) site owner II — full user control
-  ///   2) NNS founder (gmtr2) — NNS dapp visibility / recovery
-  ///   3) dfx ops deploy principal — ops recovery
-  ///   4) Factory — mint/reset/upgrade/relink authority
+  /// New site controller install: owner + factory only.
+  /// Existing sites are not mass-migrated.
   private func standardControllerPrincipals(user : Principal) : [Principal] {
     let factoryId = Principal.fromActor(this);
-    [user, NNS_CONTROLLER, DFX_CONTROLLER, factoryId]
+    [user, factoryId]
   };
 
   private func applyStandardControllersInternal(user : Principal, cid : Principal) : async ?Text {
@@ -3126,7 +3081,7 @@ persistent actor class Factory() = this {
     }
   };
 
-  /// Apply standard multi-controllers (owner + NNS founder + dfx + factory).
+  /// Apply standard controllers (owner + factory) to one linked site. Not a mass migration.
   public shared(msg) func applyStandardControllers(user : Principal) : async Text {
     if (not isOwner(msg.caller) and not Principal.equal(msg.caller, user)) {
       return "Not authorized";
@@ -3139,14 +3094,14 @@ persistent actor class Factory() = this {
             "applyStandardControllers failed (factory must be a controller): " # err
           };
           case null {
-            "Controllers set: owner II + NNS (gmtr2) + dfx + factory on " # Principal.toText(cid)
+            "Controllers set: owner II + factory on " # Principal.toText(cid)
           };
         }
       };
     }
   };
 
-  /// Alias of applyStandardControllers (dfx is already in the default set).
+  /// Alias of applyStandardControllers (owner + factory).
   public shared(msg) func applyStandardControllersWithOps(user : Principal) : async Text {
     await applyStandardControllers(user)
   };
@@ -3161,13 +3116,11 @@ persistent actor class Factory() = this {
     {
       roles = [
         ("owner", "Site owner Internet Identity — full control of their canister"),
-        ("nns_founder", Principal.toText(NNS_CONTROLLER) # " — NNS visibility / founder recovery"),
-        ("dfx_ops", Principal.toText(DFX_CONTROLLER) # " — dfx deploy / ops recovery"),
         ("factory", "This Factory principal — mint, reset, upgrade, relink via factory methods"),
       ];
       factoryMustRemain = true;
-      dfxInDefault = true;
-      note = "Default controllers: owner + NNS founder + dfx + factory. Destructive recovery should still prefer Factory APIs (requestFactoryReset / adminForceResetSite).";
+      dfxInDefault = false;
+      note = "New mints: owner + factory only. Existing sites are not mass-migrated. Destructive recovery should still prefer Factory APIs (requestFactoryReset / adminForceResetSite).";
     }
   };
 
@@ -3959,60 +3912,6 @@ persistent actor class Factory() = this {
           kind = "claim";
         });
         #ok(msg)
-      };
-    }
-  };
-
-  /// Master/ops: force transfer without a code (emergency).
-  public shared(msg) func adminForceSiteTransfer(site : Principal, toOwner : Principal) : async OpResult {
-    if (not isOwner(msg.caller)) {
-      return #err("Not authorized — factory owner only");
-    };
-    let fromOwner = switch (siteOwners.get(site)) {
-      case (?o) { o };
-      case null { return #err("Unknown site owner") };
-    };
-    // Cancel open offer if any
-    switch (transferOffers.get(site)) {
-      case (?off) {
-        if (not off.claimed) { transferCodes.delete(off.code) };
-        transferOffers.delete(site);
-      };
-      case null {};
-    };
-    let result = await performSiteHandoff(fromOwner, toOwner, site);
-    switch (result) {
-      case (#err e) { #err(e) };
-      case (#ok msg) {
-        pushTransferLog({
-          site;
-          fromOwner;
-          toOwner;
-          at = Time.now();
-          kind = "admin_force";
-        });
-        #ok(msg)
-      };
-    }
-  };
-
-  public shared(msg) func adminCancelSiteTransfer(site : Principal) : async OpResult {
-    if (not isOwner(msg.caller)) {
-      return #err("Not authorized — factory owner only");
-    };
-    switch (transferOffers.get(site)) {
-      case null { #err("No transfer offer for site") };
-      case (?off) {
-        if (off.claimed) { return #err("Offer already claimed") };
-        clearOfferMaps(site, off.code);
-        pushTransferLog({
-          site;
-          fromOwner = off.fromOwner;
-          toOwner = off.fromOwner;
-          at = Time.now();
-          kind = "cancel";
-        });
-        #ok("Transfer offer cancelled")
       };
     }
   };

@@ -4,6 +4,12 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
  * Header bell: unread badge + dropdown of in-app notifications.
  * Optional browser Notification API when permission granted.
  */
+const HIDDEN_KINDS = new Set(["follow", "message", "dm", "messages"]);
+
+function isHiddenKind(kind) {
+  return HIDDEN_KINDS.has(String(kind || "").toLowerCase());
+}
+
 export default function NotificationBell({ actor, enabled }) {
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState([]);
@@ -14,26 +20,23 @@ export default function NotificationBell({ actor, enabled }) {
 
   const load = useCallback(async () => {
     if (!actor || !enabled) return;
-    if (typeof actor.getUnreadNotificationCount !== "function") return;
+    if (typeof actor.getNotifications !== "function") return;
     try {
-      const [count, list] = await Promise.all([
-        actor.getUnreadNotificationCount(),
-        actor.getNotifications ? actor.getNotifications(30n) : Promise.resolve([]),
-      ]);
-      const n = typeof count === "bigint" ? Number(count) : Number(count) || 0;
-      setUnread(n);
-      setItems(Array.isArray(list) ? list : []);
+      const list = await actor.getNotifications(30n);
+      const visible = (Array.isArray(list) ? list : []).filter((n) => !isHiddenKind(n.kind));
+      const visibleUnread = visible.filter((n) => !n.read).length;
+      setUnread(visibleUnread);
+      setItems(visible);
 
-      // Browser push when unread increases and permission already granted
+      // Browser push when visible unread increases and permission already granted
       if (
-        n > prevUnread.current &&
+        visibleUnread > prevUnread.current &&
         typeof Notification !== "undefined" &&
         Notification.permission === "granted" &&
-        Array.isArray(list) &&
-        list.length > 0
+        visible.length > 0
       ) {
-        const newest = list[0];
-        if (newest && !newest.read) {
+        const newest = visible[0];
+        if (newest && !newest.read && !isHiddenKind(newest.kind)) {
           try {
             new Notification("ICE", {
               body: newest.message || "New notification",
@@ -42,7 +45,7 @@ export default function NotificationBell({ actor, enabled }) {
           } catch (_) {}
         }
       }
-      prevUnread.current = n;
+      prevUnread.current = visibleUnread;
     } catch (e) {
       console.error(e);
     }
@@ -102,7 +105,6 @@ export default function NotificationBell({ actor, enabled }) {
   const badge = unread > 99 ? "99+" : unread > 0 ? String(unread) : "";
 
   const kindIcon = (k) => {
-    if (k === "follow") return "👤";
     if (k === "post") return "✎";
     if (k === "tip") return "✦";
     if (k === "payment") return "◈";
