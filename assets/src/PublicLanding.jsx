@@ -5,7 +5,7 @@ import TimeAgo, { activityBucket } from "./TimeAgo";
 import { DEFAULT_CATEGORY, categoryStyle } from "./categories";
 import LedgerAffiliateAd from "./LedgerAffiliateAd";
 import BinanceUsAd from "./BinanceUsAd";
-import ContactMaster from "./ContactMaster";
+
 
 const POLL_MS = 50_000;
 
@@ -74,12 +74,10 @@ async function loadCategories(a, arr) {
   }
 }
 
-const REFERRAL_SIGNUP_KEY = "ice-referral-signup";
-
 /**
  * Pre-login public experience: feed preview + account CTAs.
  */
-export default function PublicLanding({ onJoin, onLogin, onReferralSignup, isLocal = false }) {
+export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
   const feedRef = useRef(null);
   const baselineNewestRef = useRef(null);
   const [actor, setActor] = useState(null);
@@ -213,23 +211,6 @@ export default function PublicLanding({ onJoin, onLogin, onReferralSignup, isLoc
     else if (typeof onJoin === "function") onJoin();
   };
 
-  /** Separate path: II → /referral dashboard (not ICE Join). */
-  const registerForReferral = () => {
-    try {
-      sessionStorage.setItem(REFERRAL_SIGNUP_KEY, "1");
-    } catch {
-      /* ignore */
-    }
-    if (typeof onReferralSignup === "function") onReferralSignup();
-    else {
-      try {
-        window.location.assign("/referral");
-      } catch {
-        if (typeof onLogin === "function") onLogin();
-      }
-    }
-  };
-
   const loadComments = async (postId) => {
     const key = postIdKey(postId);
     if (expanded[key] !== undefined) {
@@ -278,9 +259,6 @@ export default function PublicLanding({ onJoin, onLogin, onReferralSignup, isLoc
             </div>
           </div>
           <div style={styles.headerActions}>
-            <a href="/referral" style={styles.navLink}>
-              Referral
-            </a>
             <a href="/how-to-join" style={styles.navLink}>
               How to join
             </a>
@@ -297,14 +275,14 @@ export default function PublicLanding({ onJoin, onLogin, onReferralSignup, isLoc
           <section className="ice-public-hero" style={styles.heroCol}>
             <div style={styles.glass}>
               <div style={styles.accentLine} />
-              <p style={styles.eyebrow}>A network you control</p>
+              <p style={styles.eyebrow}>Free username on ICE</p>
               <h1 style={styles.h1}>
-                <span style={styles.h1Grad}>User-controlled</span>
-                <span style={styles.h1Sub}>social</span>
+                <span style={styles.h1Grad}>Post on</span>
+                <span style={styles.h1Sub}>ICE</span>
               </h1>
               <p style={styles.tagline}>
-                Post, follow people you care about, message privately, and keep your presence under
-                your control — without an engagement algorithm steering the conversation.
+                Create a free username to post and browse the feed. A personal site is optional —
+                10 ICP at mint (2.7 ICP canister cycles / 7.3 ICP network ops).
               </p>
 
               <div style={styles.ctaRowTop}>
@@ -322,16 +300,16 @@ export default function PublicLanding({ onJoin, onLogin, onReferralSignup, isLoc
                   <div style={styles.featureText}>Share updates that live with the network.</div>
                 </div>
                 <div style={styles.featureCard}>
-                  <div style={styles.featureTitle}>Follow</div>
-                  <div style={styles.featureText}>Build a circle you choose — no rage bait ranking.</div>
+                  <div style={styles.featureTitle}>Profile</div>
+                  <div style={styles.featureText}>A public username and bio on the network.</div>
                 </div>
                 <div style={styles.featureCard}>
-                  <div style={styles.featureTitle}>Message</div>
-                  <div style={styles.featureText}>Talk one-to-one when you want privacy.</div>
+                  <div style={styles.featureTitle}>Optional site</div>
+                  <div style={styles.featureText}>Mint a personal site for 10 ICP when you want one.</div>
                 </div>
                 <div style={styles.featureCard}>
-                  <div style={styles.featureTitle}>Own your data</div>
-                  <div style={styles.featureText}>Your account isn’t rented from an ad company.</div>
+                  <div style={styles.featureTitle}>ICP tips</div>
+                  <div style={styles.featureText}>Tip someone in ICP from their profile when tipping is on.</div>
                 </div>
               </div>
 
@@ -346,8 +324,8 @@ export default function PublicLanding({ onJoin, onLogin, onReferralSignup, isLoc
                   <li>No crypto wallet needed to start.</li>
                   <li>Sign-in usually takes about a minute (passkey, Face ID, or security key).</li>
                   <li>You recover access through Internet Identity on your devices — not email/password.</li>
-                  <li>Browsing the public feed is free. Creating an account may include a small one-time fee shown before you confirm.</li>
-                  <li>Public posts are visible to everyone. Private messages stay between the people in that chat.</li>
+                  <li>Browsing the public feed is free. A username is free. Minting a site is a separate 10 ICP step.</li>
+                  <li>Public posts are visible to everyone.</li>
                 </ul>
                 <button type="button" onClick={createAccount} style={styles.primaryBtnCompact}>
                   Create your account
@@ -360,75 +338,6 @@ export default function PublicLanding({ onJoin, onLogin, onReferralSignup, isLoc
                 </p>
               </div>
 
-              <ContactMaster />
-            </div>
-          </section>
-
-          {/* Separate from Join / feed — referral program only */}
-          <section
-            id="referral-program"
-            style={styles.referralSection}
-            aria-label="Referral program"
-          >
-            <div style={styles.referralGlass}>
-              <div style={styles.referralFrost} aria-hidden="true" />
-              <div style={styles.referralAccent} />
-              <p style={styles.referralEyebrow}>ICE referral program</p>
-              <h2 style={styles.referralH2}>
-                Get in free — invite{" "}
-                <span style={styles.referralH2Ice}>15 users</span>
-              </h2>
-              <p style={styles.referralLead}>
-                Register your Internet Identity for the referral program. You do{" "}
-                <strong style={{ color: "#e0f2fe" }}>not</strong> need an ICE account — only II.
-                You&apos;ll get a dashboard at{" "}
-                <a href="/referral" style={styles.referralLinkBtn}>
-                  /referral
-                </a>{" "}
-                to copy your link, save it, and track how many users Joined. When{" "}
-                <strong style={{ color: "#e0f2fe" }}>15 users</strong> fully register through your
-                link and get canister websites, you unlock{" "}
-                <strong style={{ color: "#7dd3fc" }}>free Join + your own site</strong>.
-              </p>
-
-              <ol style={styles.referralSteps}>
-                <li style={styles.referralStep}>
-                  <span style={styles.referralStepNum}>1</span>
-                  <span>
-                    <strong style={{ color: "#f0f9ff" }}>Register your II</strong> — opens your
-                    referral dashboard (not ICE Join).
-                  </span>
-                </li>
-                <li style={styles.referralStep}>
-                  <span style={styles.referralStepNum}>2</span>
-                  <span>
-                    <strong style={{ color: "#f0f9ff" }}>Copy &amp; save your invite link</strong> —
-                    bookmark <code style={styles.referralCode}>/referral</code> for later.
-                  </span>
-                </li>
-                <li style={styles.referralStep}>
-                  <span style={styles.referralStepNum}>3</span>
-                  <span>
-                    <strong style={{ color: "#f0f9ff" }}>15 paid Joins</strong> via your link →
-                    each user gets a canister site → you Join free.
-                  </span>
-                </li>
-              </ol>
-
-              <button type="button" onClick={registerForReferral} style={styles.referralBtn}>
-                {isLocal ? "Continue (local) — referral" : "Open referral dashboard"}
-              </button>
-              <p style={styles.referralFoot}>
-                Prefer to pay and join ICE now?{" "}
-                <button type="button" onClick={createAccount} style={styles.referralLinkBtn}>
-                  Create your account
-                </button>
-                {" · "}
-                Already an ICE member?{" "}
-                <button type="button" onClick={signIn} style={styles.referralLinkBtn}>
-                  Sign in
-                </button>
-              </p>
             </div>
           </section>
 
@@ -447,7 +356,7 @@ export default function PublicLanding({ onJoin, onLogin, onReferralSignup, isLoc
                 <span style={styles.feedMeta}>Public preview</span>
               </div>
               <p style={styles.feedExplainer}>
-                Public preview — anyone can read. Create an account to post, follow, or reply.
+                Public preview — anyone can read. Create a free username to post or reply.
               </p>
 
               {pendingPosts && (
@@ -944,147 +853,6 @@ const styles = {
     fontSize: "0.78rem",
     color: "#64748b",
     textAlign: "center",
-  },
-  referralSection: {
-    scrollMarginTop: "1.25rem",
-  },
-  referralGlass: {
-    position: "relative",
-    overflow: "hidden",
-    background:
-      "linear-gradient(155deg, rgba(8, 24, 42, 0.88) 0%, rgba(15, 23, 42, 0.78) 45%, rgba(30, 27, 55, 0.72) 100%)",
-    backdropFilter: "blur(22px)",
-    WebkitBackdropFilter: "blur(22px)",
-    border: "1px solid rgba(125, 211, 252, 0.38)",
-    boxShadow:
-      "0 12px 48px rgba(14, 165, 233, 0.14), 0 0 0 1px rgba(186, 230, 253, 0.06) inset, inset 0 1px 0 rgba(255,255,255,0.1)",
-    borderRadius: "1.35rem",
-    padding: "1.35rem 1.35rem 1.45rem",
-  },
-  referralFrost: {
-    pointerEvents: "none",
-    position: "absolute",
-    inset: 0,
-    background:
-      "radial-gradient(ellipse 80% 55% at 12% -10%, rgba(186, 230, 253, 0.22), transparent 55%), radial-gradient(ellipse 60% 45% at 95% 110%, rgba(165, 180, 252, 0.16), transparent 50%), linear-gradient(180deg, rgba(255,255,255,0.04), transparent 35%)",
-  },
-  referralAccent: {
-    position: "relative",
-    height: 1,
-    width: "100%",
-    marginBottom: "1rem",
-    background:
-      "linear-gradient(90deg, transparent, rgba(186,230,253,0.75), rgba(125,211,252,0.85), rgba(165,180,252,0.65), transparent)",
-  },
-  referralEyebrow: {
-    position: "relative",
-    fontSize: "0.68rem",
-    fontWeight: 700,
-    letterSpacing: "0.16em",
-    textTransform: "uppercase",
-    color: "rgba(186, 230, 253, 0.95)",
-    margin: "0 0 0.45rem",
-    textShadow: "0 0 18px rgba(125, 211, 252, 0.35)",
-  },
-  referralH2: {
-    position: "relative",
-    margin: "0 0 0.55rem",
-    fontSize: "clamp(1.35rem, 3vw, 1.75rem)",
-    fontWeight: 800,
-    letterSpacing: "-0.02em",
-    color: "#f0f9ff",
-    lineHeight: 1.2,
-  },
-  referralH2Ice: {
-    background: "linear-gradient(90deg, #e0f2fe, #7dd3fc, #a5b4fc, #c4b5fd)",
-    WebkitBackgroundClip: "text",
-    backgroundClip: "text",
-    color: "transparent",
-  },
-  referralLead: {
-    position: "relative",
-    margin: "0 0 1rem",
-    fontSize: "0.92rem",
-    lineHeight: 1.55,
-    color: "#94a3b8",
-    maxWidth: "40rem",
-  },
-  referralSteps: {
-    position: "relative",
-    listStyle: "none",
-    margin: "0 0 1.1rem",
-    padding: 0,
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.65rem",
-  },
-  referralStep: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 0,
-    fontSize: "0.86rem",
-    lineHeight: 1.45,
-    color: "#94a3b8",
-  },
-  referralStepNum: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "1.55rem",
-    height: "1.55rem",
-    borderRadius: "999px",
-    marginRight: "0.65rem",
-    flexShrink: 0,
-    fontSize: "0.75rem",
-    fontWeight: 800,
-    color: "#0c1929",
-    background: "linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 45%, #a5b4fc 100%)",
-    boxShadow: "0 0 16px rgba(125, 211, 252, 0.35)",
-  },
-  referralCode: {
-    fontSize: "0.78em",
-    color: "#bae6fd",
-  },
-  referralBtn: {
-    position: "relative",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
-    padding: "0.85rem 1.25rem",
-    border: "1px solid rgba(186, 230, 253, 0.45)",
-    borderRadius: "0.95rem",
-    fontSize: "0.98rem",
-    fontWeight: 750,
-    color: "#0c1929",
-    cursor: "pointer",
-    background: "linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 40%, #818cf8 78%, #a78bfa 100%)",
-    boxShadow: "0 6px 32px rgba(56, 189, 248, 0.38), inset 0 1px 0 rgba(255,255,255,0.55)",
-  },
-  referralFoot: {
-    position: "relative",
-    margin: "0.75rem 0 0",
-    fontSize: "0.78rem",
-    color: "#64748b",
-    textAlign: "center",
-    lineHeight: 1.5,
-  },
-  referralInviteBox: {
-    position: "relative",
-    marginTop: "0.25rem",
-    padding: "0.85rem 0.9rem",
-    borderRadius: 14,
-    border: "1px solid rgba(125, 211, 252, 0.28)",
-    background: "rgba(8, 16, 32, 0.45)",
-  },
-  referralLinkBtn: {
-    border: "none",
-    background: "transparent",
-    color: "#7dd3fc",
-    fontWeight: 700,
-    cursor: "pointer",
-    padding: 0,
-    fontSize: "inherit",
   },
   feedCol: {},
   feedHead: {

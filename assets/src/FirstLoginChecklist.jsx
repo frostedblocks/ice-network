@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { unwrapOpt } from "./candidUtils";
 import { DEFAULT_CATEGORY } from "./categories";
-import Username from "./Username";
-import FollowButton from "./FollowButton";
 
 const STORAGE_PREFIX = "ice-first-login-v1:";
 
@@ -18,7 +16,6 @@ function defaultProgress() {
   return {
     enrolled: false,
     username: false,
-    follow: false,
     post: false,
     completedAt: null,
   };
@@ -67,7 +64,7 @@ export function isFirstLoginIncomplete(principal) {
 }
 
 /**
- * Post-account modal: username → follow founder → first post.
+ * Post-account modal: confirm username, then first post.
  * Skip for now hides for this session; incomplete state resumes next visit.
  * Only enrolled principals (after Join) see this — existing users are left alone.
  */
@@ -90,9 +87,6 @@ export default function FirstLoginChecklist({
   const [busy, setBusy] = useState(false);
 
   const [username, setUsername] = useState("");
-  const [founder, setFounder] = useState(null);
-  const [isOwner, setIsOwner] = useState(false);
-
   const [postText, setPostText] = useState("");
 
   const enrolled = !!progress.enrolled;
@@ -110,7 +104,7 @@ export default function FirstLoginChecklist({
     (patch) => {
       setProgress((prev) => {
         const next = { ...prev, ...patch };
-        const allDone = !!(next.username && next.follow && next.post);
+        const allDone = !!(next.username && next.post);
         if (allDone) {
           next.completedAt = new Date().toISOString();
           setForceOpen(false);
@@ -130,27 +124,11 @@ export default function FirstLoginChecklist({
     setBooting(true);
     setError("");
     try {
-      const [profRaw, owner, ownerFlag, following] = await Promise.all([
-        actor.getProfile ? actor.getProfile(me) : Promise.resolve(null),
-        actor.getOwner ? actor.getOwner() : Promise.resolve(null),
-        actor.isOwner ? actor.isOwner(me) : Promise.resolve(false),
-        actor.getFollowing ? actor.getFollowing(me) : Promise.resolve([]),
-      ]);
+      const profRaw = actor.getProfile ? await actor.getProfile(me) : null;
 
       const prof = unwrapOpt(profRaw);
       const name = (prof?.username || "").trim();
       if (name) setUsername(name);
-
-      const ownerPrincipal = owner || null;
-      setFounder(ownerPrincipal);
-      const amOwner = !!ownerFlag;
-      setIsOwner(amOwner);
-
-      const followingList = Array.isArray(following) ? following : [];
-      const followsFounder =
-        amOwner ||
-        (!!ownerPrincipal &&
-          followingList.some((p) => p.toString() === ownerPrincipal.toString()));
 
       let hasPosted = false;
       try {
@@ -173,18 +151,15 @@ export default function FirstLoginChecklist({
         ...base,
         enrolled: true,
         username: base.username || !!name,
-        follow: base.follow || followsFounder,
         post: base.post || hasPosted,
       };
-      if (next.username && next.follow && next.post && !next.completedAt) {
+      if (next.username && next.post && !next.completedAt) {
         next.completedAt = new Date().toISOString();
       }
       persist(next);
 
-      // Land on first incomplete step
       if (!next.username) setActiveStep(0);
-      else if (!next.follow) setActiveStep(1);
-      else if (!next.post) setActiveStep(2);
+      else if (!next.post) setActiveStep(1);
       else setActiveStep(0);
     } catch (err) {
       console.error(err);
@@ -211,7 +186,6 @@ export default function FirstLoginChecklist({
   const stepsDone = useMemo(() => {
     let n = 0;
     if (progress.username) n += 1;
-    if (progress.follow) n += 1;
     if (progress.post) n += 1;
     return n;
   }, [progress]);
@@ -262,19 +236,6 @@ export default function FirstLoginChecklist({
     } finally {
       setBusy(false);
     }
-  };
-
-  const onFollowChanged = ({ action } = {}) => {
-    if (action === "follow") {
-      markComplete({ follow: true });
-      setActiveStep(2);
-      if (typeof onGoHome === "function") onGoHome();
-    }
-  };
-
-  const skipFollowAsOwner = () => {
-    markComplete({ follow: true });
-    setActiveStep(2);
   };
 
   const submitFirstPost = async (e) => {
@@ -329,7 +290,7 @@ export default function FirstLoginChecklist({
             if (typeof onGoHome === "function") onGoHome();
           }}
         >
-          Finish setup ({stepsDone}/3)
+          Finish setup ({stepsDone}/2)
         </button>
       )}
 
@@ -344,7 +305,7 @@ export default function FirstLoginChecklist({
           >
             <p className="ice-setup-kicker">Welcome</p>
             <h2 id="ice-setup-title" className="ice-setup-title">
-              You’re in — three quick steps
+              You’re in — two quick steps
             </h2>
             <p className="ice-setup-sub">
               About a minute. You can skip and finish later.
@@ -353,7 +314,6 @@ export default function FirstLoginChecklist({
             <ol className="ice-setup-steps" aria-label="Setup progress">
               {[
                 { id: "username", label: "Confirm your name", done: progress.username },
-                { id: "follow", label: "Follow the founder", done: progress.follow },
                 { id: "post", label: "Share your first post", done: progress.post },
               ].map((s, i) => (
                 <li key={s.id} className={s.done ? "is-done" : i === activeStep ? "is-active" : ""}>
@@ -409,50 +369,6 @@ export default function FirstLoginChecklist({
               )}
 
               {activeStep === 1 && (
-                <div>
-                  {isOwner ? (
-                    <>
-                      <p className="ice-setup-done-msg">
-                        You’re the founder account — this step is done.
-                      </p>
-                      <button type="button" className="ice-btn-primary" onClick={skipFollowAsOwner}>
-                        Continue
-                      </button>
-                    </>
-                  ) : progress.follow ? (
-                    <>
-                      <p className="ice-setup-done-msg">You’re following the founder.</p>
-                      <button
-                        type="button"
-                        className="ice-btn-primary"
-                        onClick={() => setActiveStep(2)}
-                      >
-                        Continue
-                      </button>
-                    </>
-                  ) : founder ? (
-                    <>
-                      <p className="ice-setup-hint">
-                        Follow the ICE founder to see their updates in your network.
-                      </p>
-                      <div className="ice-setup-founder">
-                        <Username actor={actor} principal={founder} />
-                        <FollowButton
-                          actor={actor}
-                          targetPrincipal={founder}
-                          currentUserPrincipal={me}
-                          showBlock={false}
-                          onChanged={onFollowChanged}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <p className="ice-setup-hint">Could not load the founder account right now.</p>
-                  )}
-                </div>
-              )}
-
-              {activeStep === 2 && (
                 <form onSubmit={submitFirstPost}>
                   {progress.post ? (
                     <p className="ice-setup-done-msg">Your first post is live. You’re done.</p>
@@ -482,7 +398,7 @@ export default function FirstLoginChecklist({
 
             <div className="ice-setup-footer">
               <span className="ice-setup-progress">
-                {stepsDone}/3 complete
+                {stepsDone}/2 complete
               </span>
               {!completed && (
                 <button type="button" className="ice-btn" onClick={skipForNow}>

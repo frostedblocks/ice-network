@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import ReportButton from "./ReportButton";
 import Comments from "./Comments";
-import FollowButton from "./FollowButton";
 import Username from "./Username";
 import TimeAgo from "./TimeAgo";
 import { DEFAULT_CATEGORY, categoryStyle } from "./categories";
@@ -246,12 +245,6 @@ export default function PostCard({
               </button>
             </>
           )}
-          <FollowButton
-            actor={actor}
-            targetPrincipal={post.author}
-            currentUserPrincipal={currentUserPrincipal}
-            showBlock={false}
-          />
         </div>
       </div>
 

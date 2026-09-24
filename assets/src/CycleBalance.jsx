@@ -161,12 +161,6 @@ export default function CycleBalance({ actor, identity }) {
           cycles: balances.ice,
         },
         {
-          key: "messaging",
-          label: "Messaging",
-          id: "6agwb-myaaa-aaaan-q6mxa-cai",
-          cycles: balances.messaging,
-        },
-        {
           key: "assets",
           label: "Assets (website)",
           id: "6hhqv-baaaa-aaaan-q6mxq-cai",

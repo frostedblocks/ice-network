@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "canisters": {
+    "ice": {
+      "type": "motoko",
+      "main": "ice/main.mo",
+      "declarations": {
+        "output": "assets/src/declarations/ice",
+        "bindings": ["js", "ts", "did"]
+      }
+    },
+    "factory": {
+      "type": "motoko",
+      "main": "factory/main.mo",
+      "declarations": {
+        "output": "assets/src/declarations/factory",
+        "bindings": ["js", "ts", "did"]
+      }
+    },
+    "registry": {
+      "type": "motoko",
+      "main": "registry/main.mo",
+      "declarations": {
+        "output": "assets/src/declarations/registry",
+        "bindings": ["js", "ts", "did"]
+      }
+    },
+    "user_site": {
+      "type": "motoko",
+      "main": "user_site/main.mo",
+      "declarations": {
+        "output": "assets/src/declarations/user_site",
+        "bindings": ["js", "ts", "did"]
+      }
+    },
+    "assets": {
+      "type": "assets",
+      "source": ["assets/dist"],
+      "dependencies": ["ice", "factory"]
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": ""
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    },
+    "ic": {
+      "providers": ["https://icp0.io"],
+      "type": "persistent"
+    }
+  },
+  "output_env_file": "assets/.env.local"
+}

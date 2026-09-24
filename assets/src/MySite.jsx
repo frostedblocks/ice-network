@@ -53,6 +53,7 @@ export default function MySite({
   const [msg, setMsg] = useState("");
   const [cycleRefreshKey, setCycleRefreshKey] = useState(0);
   const [nnsFeeReady, setNnsFeeReady] = useState(false);
+  const [mintFeeReady, setMintFeeReady] = useState(false);
   const [domainReady, setDomainReady] = useState(false);
   const [reattachEligible, setReattachEligible] = useState(false);
   const [siteCyclesLow, setSiteCyclesLow] = useState(false);
@@ -62,6 +63,7 @@ export default function MySite({
   const me = identity ? identity.getPrincipal() : null;
 
   const onNnsFeeReady = useCallback((r) => setNnsFeeReady(!!r), []);
+  const onMintFeeReady = useCallback((r) => setMintFeeReady(!!r), []);
   const onDomainStatus = useCallback((r) => setDomainReady(!!r), []);
 
   const load = useCallback(async () => {
@@ -117,42 +119,6 @@ export default function MySite({
       }
 
       if (!id) {
-        setMsg("No website yet — creating after registration (no Join fee)…");
-        let lastErr = "";
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            const fn = factory.ensureUserSite || factory.createUserSite;
-            const result = await fn.call(factory);
-            if (result && "ok" in result) {
-              id = result.ok;
-              isLinked = true;
-              setMsg("Your website canister was created.");
-              lastErr = "";
-              break;
-            }
-            lastErr =
-              (result && result.err) ||
-              "Could not create website. You stay registered — retry My Site (no second Join fee).";
-            if (/cycles too low|No user_site WASM/i.test(lastErr)) break;
-          } catch (e) {
-            lastErr = e?.message || String(e);
-          }
-          await new Promise((r) => setTimeout(r, 1000 * attempt));
-        }
-        if (!id) {
-          setError(lastErr || "Could not create website.");
-          setSiteId(null);
-          setLinked(false);
-          setReattachEligible(false);
-          setLoading(false);
-          return;
-        }
-      }
-
-      if (!id) {
-        setError(
-          "No personal website canister yet. Complete paid registration so a site can be created."
-        );
         setSiteId(null);
         setLinked(false);
         setReattachEligible(false);
@@ -229,6 +195,54 @@ export default function MySite({
   useEffect(() => {
     load();
   }, [load, activeSiteId]);
+
+  const mintFeeE8s = Math.round(Number(fees?.mintFeeE8s ?? 1_000_000_000) || 1_000_000_000);
+  const mintCyclesE8s = Math.round(Number(fees?.mintCyclesShareE8s ?? 270_000_000) || 270_000_000);
+  const mintOpsE8s = Math.round(
+    Number(fees?.mintNetworkOpsE8s ?? Math.max(0, mintFeeE8s - mintCyclesE8s)) ||
+      Math.max(0, mintFeeE8s - mintCyclesE8s)
+  );
+  const mustPayMint = mintFeeE8s > 0;
+
+  const handleMintSite = async () => {
+    if (!identity) return;
+    if (mustPayMint && !mintFeeReady) {
+      setError("Approve the 10 ICP mint fee with Internet Identity first.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setMsg("");
+    try {
+      const factory = await createFactoryActor(identity);
+      const fn = factory.ensureUserSite || factory.createUserSite;
+      const result = await fn.call(factory);
+      if (result && result.ok) {
+        const created = result.ok.toText ? result.ok.toText() : String(result.ok);
+        setMsg("Website canister created.");
+        setMintFeeReady(false);
+        if (typeof onActiveSiteChange === "function") onActiveSiteChange(created);
+        if (typeof onSitesChanged === "function") {
+          try {
+            await onSitesChanged();
+          } catch (_) {
+            /* optional */
+          }
+        }
+        await load();
+      } else {
+        setError(
+          ((result && result.err) || "Mint failed.") +
+            "\n\nIf Factory already charged and the canister was created, ICP is held for resume — use Mint site again (no second charge while pending). If charge failed before create, you were refunded."
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "Mint failed");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleDetach = async () => {
     if (
@@ -413,8 +427,35 @@ export default function MySite({
       {loading && !siteId ? (
         <div className="ice-loading">Loading your website…</div>
       ) : !siteId ? (
-        <div className="ice-glass ice-empty">
-          No personal website canister yet. Complete paid registration to provision one.
+        <div className="ice-glass" style={{ padding: "1.15rem 1.2rem" }}>
+          <h3 style={{ margin: "0 0 0.4rem", color: "#f8fafc" }}>No site yet</h3>
+          <p style={{ margin: "0 0 0.75rem", color: "#94a3b8", fontSize: "0.88rem", lineHeight: 1.5 }}>
+            Your username is free. Minting a personal site is optional —{" "}
+            <strong style={{ color: "#fbbf24" }}>{formatIcp(mintFeeE8s)} ICP</strong> once (
+            {formatIcp(mintCyclesE8s)} ICP canister cycles / {formatIcp(mintOpsE8s)} ICP network ops).
+          </p>
+          {mustPayMint && identity && (
+            <NnsIcpFee
+              identity={identity}
+              feeE8s={BigInt(mintFeeE8s)}
+              spenderCanisterId={FACTORY_CANISTER_ID}
+              purpose={`site mint (${formatIcp(mintCyclesE8s)} ICP canister cycles + ${formatIcp(mintOpsE8s)} ICP network)`}
+              onReadyChange={onMintFeeReady}
+            />
+          )}
+          <button
+            type="button"
+            className="ice-btn-primary"
+            style={{ marginTop: "0.75rem" }}
+            disabled={busy || (mustPayMint && !mintFeeReady)}
+            onClick={handleMintSite}
+          >
+            {busy
+              ? "Minting site…"
+              : mustPayMint && !mintFeeReady
+              ? `Approve ${formatIcp(mintFeeE8s)} ICP, then mint site`
+              : `Mint site (${formatIcp(mintFeeE8s)} ICP · ${formatIcp(mintCyclesE8s)} / ${formatIcp(mintOpsE8s)})`}
+          </button>
         </div>
       ) : (
         <>

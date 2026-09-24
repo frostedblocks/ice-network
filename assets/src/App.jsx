@@ -3,7 +3,6 @@ import { AuthClient } from "@dfinity/auth-client";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
 import {
   createIceActor,
-  createMessagingActor,
   createFactoryActor,
   parsePublicSiteRoute,
   isPlatformHost,
@@ -12,16 +11,12 @@ import {
 } from "./actors";
 import PostForm from "./PostForm";
 import Feed from "./Feed";
-import Subscribe from "./Subscribe";
 import Profile from "./Profile";
 import TokenBalance from "./TokenBalance";
 import UserProfileView from "./UserProfileView";
-import Messaging from "./Messaging";
 import Register from "./Register";
 import PublicLanding from "./PublicLanding";
 import PublicSite from "./PublicSite";
-import ReferralPage from "./ReferralPage";
-import Associates from "./Associates";
 import MySite from "./MySite";
 import NotificationBell from "./NotificationBell";
 import FirstLoginChecklist, {
@@ -31,7 +26,6 @@ import FirstLoginChecklist, {
 import AdminLite from "./AdminLite";
 import SitePicker, { readPreferredSite, writePreferredSite } from "./SitePicker";
 import PrincipalMigrationClaim from "./PrincipalMigrationClaim";
-import InviteCard, { captureInviteRefFromUrl } from "./InviteCard";
 
 function isAdminLiteHash() {
   try {
@@ -39,28 +33,6 @@ function isAdminLiteHash() {
     return h === "/admin/lite" || h === "admin/lite";
   } catch {
     return false;
-  }
-}
-
-/** Dedicated referral dashboard — /referral or #/referral */
-function isReferralRoute() {
-  try {
-    const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
-    if (path === "/referral") return true;
-    const h = (window.location.hash || "").replace(/^#/, "");
-    return h === "/referral" || h === "referral";
-  } catch {
-    return false;
-  }
-}
-
-function goReferralRoute() {
-  try {
-    if ((window.location.pathname || "").replace(/\/+$/, "") !== "/referral") {
-      window.history.replaceState(null, "", "/referral");
-    }
-  } catch {
-    /* ignore */
   }
 }
 
@@ -100,15 +72,7 @@ function loginDerivationOrigin() {
  * Used client-side so master never hits the Join wall even if a query glitches.
  */
 const TRUSTED_MASTER_PRINCIPALS = new Set([
-  "4jitt-jjzlt-kqv7o-ldoxu-hxgme-rg2i7-4ycbj-rev22-ozcy5-7jdqf-fqe",
-  /** Confirmed primary master II (assets / icp0.io derivation) */
   "gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae",
-  /** Same founder II on frostedblocks.com when derivationOrigin is not applied */
-  "ogsk6-lwnep-oa422-nqvac-puciz-6fbaw-emuqb-xi6ay-ga75u-3e5rh-jae",
-  "d7fkw-eyxt4-mo3cn-ptsb4-kxexz-r2toj-cu6wy-lq5mi-uassm-a3tso-bae",
-  "zna7n-hc6xu-4jyrk-7fw73-5whiu-p5cwo-657hs-potut-ewx2g-25r6x-wae",
-  /** Ops / dfx mynewdeploy recovery identity */
-  "vm63y-5g4h5-nz2ca-2ix5o-ulj6h-qhcla-ucukz-qbmij-yvcwi-lyjzr-3qe",
 ]);
 
 const LOCAL_ID_KEY = "ice-local-ed25519-identity";
@@ -144,18 +108,14 @@ function loadOrCreateLocalIdentity() {
 
 const NAV = [
   { id: "feed", label: "Feed" },
-  { id: "messages", label: "Messages" },
-  { id: "associates", label: "Network" },
   { id: "mysite", label: "My Site" },
   { id: "profile", label: "Profile" },
-  { id: "subscribe", label: "ICP" },
 ];
 
 export default function App() {
   const [authClient, setAuthClient] = useState(null);
   const [identity, setIdentity] = useState(null);
   const [actor, setActor] = useState(null);
-  const [messagingActor, setMessagingActor] = useState(null);
   const [view, setView] = useState(() => (isAdminLiteHash() ? "admin-lite" : "feed"));
   const [viewingPrincipal, setViewingPrincipal] = useState(null);
   const [bootError, setBootError] = useState("");
@@ -165,11 +125,8 @@ export default function App() {
   const [registered, setRegistered] = useState(null);
   /** True when canister reports isOwner/isMaster for this II (covers owner claim beyond hardcoded list). */
   const [canisterMaster, setCanisterMaster] = useState(false);
-  /** Unregistered users may browse after II login; paid join/register required to use the network */
+  /** Unregistered users may browse after II login; free username required to post */
   const [showJoin, setShowJoin] = useState(false);
-  /** II-only referral: stay on landing with invite link — do not enter ICE Join/app. */
-  const [referralOnly, setReferralOnly] = useState(false);
-  const [referralActor, setReferralActor] = useState(null);
   const [publicSiteRoute, setPublicSiteRoute] = useState(() => parsePublicSiteRoute());
   const [hostSiteId, setHostSiteId] = useState(null);
   const [hostResolving, setHostResolving] = useState(() => !isPlatformHost());
@@ -177,10 +134,6 @@ export default function App() {
   const [ownedSites, setOwnedSites] = useState([]);
   const [activeSiteId, setActiveSiteId] = useState(null);
   const [showSitePicker, setShowSitePicker] = useState(false);
-
-  useEffect(() => {
-    captureInviteRefFromUrl();
-  }, []);
 
   useEffect(() => {
     const sync = () => {
@@ -325,18 +278,13 @@ export default function App() {
       setRegistered(null);
     }
     try {
-      const [main, msg] = await Promise.all([
-        createIceActor(id),
-        createMessagingActor(id),
-      ]);
+      const main = await createIceActor(id);
       setActor(main);
-      setMessagingActor(msg);
       return await checkRegistered(main, id);
     } catch (err) {
       console.error(err);
       setBootError(err.message || "Could not connect to canisters.");
       setActor(null);
-      setMessagingActor(null);
       // Master still gets full app if canister call fails
       if (id && isTrustedMasterPrincipal(id.getPrincipal())) {
         setCanisterMaster(true);
@@ -375,38 +323,14 @@ export default function App() {
       setAuthClient(client);
       if (await client.isAuthenticated()) {
         const id = client.getIdentity();
-        let referralIntent = false;
-        try {
-          referralIntent = sessionStorage.getItem("ice-referral-signup") === "1";
-        } catch {
-          referralIntent = false;
-        }
-        if (referralIntent || isReferralRoute()) {
-          // Referral dashboard — do not enter ICE app
-          setIdentity(id);
-          setReferralOnly(true);
+        setIdentity(id);
+        // Instant bypass for founder principals (before async checks finish)
+        if (isTrustedMasterPrincipal(id.getPrincipal())) {
+          setRegistered(true);
           setShowJoin(false);
-          try {
-            sessionStorage.setItem("ice-referral-signup", "1");
-          } catch {
-            /* ignore */
-          }
-          goReferralRoute();
-          try {
-            setReferralActor(await createIceActor(id));
-          } catch {
-            setReferralActor(null);
-          }
-        } else {
-          setIdentity(id);
-          // Instant bypass for founder principals (before async checks finish)
-          if (isTrustedMasterPrincipal(id.getPrincipal())) {
-            setRegistered(true);
-            setShowJoin(false);
-          }
-          await connectActors(id);
-          await resolveOwnedSites(id);
         }
+        await connectActors(id);
+        await resolveOwnedSites(id);
       }
       setBooting(false);
     })();
@@ -524,40 +448,7 @@ export default function App() {
           console.info("[ICE] page origin:", currentOrigin());
           console.info("[ICE] derivationOrigin used:", derivationOrigin || "(none — native origin)");
 
-          let referralIntent = false;
-          try {
-            referralIntent = sessionStorage.getItem("ice-referral-signup") === "1";
-          } catch {
-            referralIntent = false;
-          }
-
-          // Referral program: II only — open /referral dashboard (not ICE Join/app).
-          if (referralIntent || isReferralRoute()) {
-            setIdentity(id);
-            setReferralOnly(true);
-            setShowJoin(false);
-            setRegistered(null);
-            setCanisterMaster(false);
-            try {
-              sessionStorage.setItem("ice-referral-signup", "1");
-            } catch {
-              /* ignore */
-            }
-            goReferralRoute();
-            try {
-              const refActor = await createIceActor(id);
-              setReferralActor(refActor);
-            } catch (e) {
-              console.warn("[ICE] referral actor optional", e);
-              setReferralActor(null);
-            }
-            setBootError("");
-            return;
-          }
-
           setIdentity(id);
-          setReferralOnly(false);
-          setReferralActor(null);
           setShowJoin(false);
           if (isTrustedMasterPrincipal(id.getPrincipal())) {
             setCanisterMaster(true);
@@ -609,81 +500,8 @@ export default function App() {
     }
   };
 
-  const loginSignIn = () => {
-    try {
-      sessionStorage.removeItem("ice-referral-signup");
-    } catch {
-      /* ignore */
-    }
-    setReferralOnly(false);
-    setReferralActor(null);
-    login();
-  };
-  const loginJoin = () => {
-    try {
-      sessionStorage.removeItem("ice-referral-signup");
-    } catch {
-      /* ignore */
-    }
-    setReferralOnly(false);
-    setReferralActor(null);
-    login();
-  };
-  /** Landing / /referral: II only — open referral dashboard, no ICE Join/app. */
-  const loginReferral = () => {
-    try {
-      sessionStorage.setItem("ice-referral-signup", "1");
-    } catch {
-      /* ignore */
-    }
-    setShowJoin(false);
-    goReferralRoute();
-    login();
-  };
-
-  /** Leave referral-only mode; drop II session so they are not signed into ICE. */
-  const finishReferralOnly = async () => {
-    try {
-      sessionStorage.removeItem("ice-referral-signup");
-    } catch {
-      /* ignore */
-    }
-    setReferralOnly(false);
-    setReferralActor(null);
-    await logout();
-  };
-
-  /** From referral page: leave /referral and open ICE Join (optional paid path). */
-  const referralToJoin = async () => {
-    try {
-      sessionStorage.removeItem("ice-referral-signup");
-    } catch {
-      /* ignore */
-    }
-    setReferralOnly(false);
-    setReferralActor(null);
-    try {
-      window.history.replaceState(null, "", "/");
-    } catch {
-      /* ignore */
-    }
-    if (!identity) {
-      login();
-      return;
-    }
-    try {
-      const status = await connectActors(identity);
-      if (!status.registered && !status.isMaster) {
-        setShowJoin(true);
-      } else {
-        setShowJoin(false);
-      }
-      await resolveOwnedSites(identity);
-    } catch (e) {
-      console.error(e);
-      setShowJoin(true);
-    }
-  };
+  const loginSignIn = () => login();
+  const loginJoin = () => login();
 
   const logout = async () => {
     if (!isLocalNetwork() && authClient) {
@@ -695,16 +513,8 @@ export default function App() {
     }
     setIdentity(null);
     setActor(null);
-    setMessagingActor(null);
     setRegistered(null);
     setCanisterMaster(false);
-    setReferralOnly(false);
-    setReferralActor(null);
-    try {
-      sessionStorage.removeItem("ice-referral-signup");
-    } catch {
-      /* ignore */
-    }
     setView("feed");
     setViewingPrincipal(null);
   };
@@ -713,7 +523,6 @@ export default function App() {
     localStorage.removeItem(LOCAL_ID_KEY);
     setIdentity(null);
     setActor(null);
-    setMessagingActor(null);
     setRegistered(null);
     setCanisterMaster(false);
     setView("feed");
@@ -817,21 +626,6 @@ export default function App() {
     );
   }
 
-  // Dedicated referral dashboard (bookmark https://frostedblocks.com/referral)
-  if (referralOnly || isReferralRoute()) {
-    return (
-      <ReferralPage
-        identity={identity}
-        actor={referralActor}
-        onSignIn={loginReferral}
-        onDone={finishReferralOnly}
-        onJoinIce={referralToJoin}
-        bootError={bootError}
-        isLocal={isLocalNetwork()}
-      />
-    );
-  }
-
   if (!identity) {
     return (
       <>
@@ -860,7 +654,6 @@ export default function App() {
         <PublicLanding
           onJoin={loginJoin}
           onLogin={loginSignIn}
-          onReferralSignup={loginReferral}
           isLocal={isLocalNetwork()}
         />
       </>
@@ -868,8 +661,7 @@ export default function App() {
   }
 
   const activeNav = view === "user" ? "feed" : view;
-  const wide =
-    view === "mysite" || view === "messages" || view === "associates" || view === "profile";
+  const wide = view === "mysite" || view === "profile";
 
   return (
     <div className="ice-app">
@@ -1109,25 +901,8 @@ export default function App() {
                 goFeed();
               }}
             />
-          ) : view === "subscribe" ? (
-            <Subscribe
-              actor={actor}
-              identity={identity}
-              principal={identity.getPrincipal()}
-              onSuccess={() => setBalanceRefreshKey((k) => k + 1)}
-            />
           ) : view === "profile" ? (
-            <>
-              <InviteCard actor={actor} identity={identity} />
-              <Profile actor={actor} identity={identity} />
-            </>
-          ) : view === "associates" ? (
-            <Associates
-              actor={actor}
-              identity={identity}
-              onUserClick={openUserProfile}
-              onBack={goFeed}
-            />
+            <Profile actor={actor} identity={identity} />
           ) : view === "mysite" ? (
             <MySite
               identity={identity}
@@ -1138,14 +913,6 @@ export default function App() {
                 if (identity) await resolveOwnedSites(identity);
               }}
               onBack={goFeed}
-            />
-          ) : view === "messages" ? (
-            <Messaging
-              mainActor={actor}
-              messagingActor={messagingActor}
-              identity={identity}
-              onBack={goFeed}
-              onTokensChanged={() => setBalanceRefreshKey((k) => k + 1)}
             />
           ) : view === "user" && viewingPrincipal ? (
             <UserProfileView
@@ -1163,7 +930,7 @@ export default function App() {
                 <div>
                   <h2>Home</h2>
                   <p className="ice-page-desc">
-                    Share posts, explore the feed, and connect.
+                    Free username on ICE. Post, browse the feed, and optionally mint a site for 10 ICP.
                   </p>
                 </div>
               </div>

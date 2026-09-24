@@ -7,17 +7,14 @@ import { DEFAULT_CATEGORY } from "./categories";
 const LITE_FEED_URL = "https://lite.frostedblocks.com/api/lite-feed?limit=25";
 
 /**
- * Feed: All = main ICE discovery (never shows detached authors) + read-only Lite posts.
- * Following = people you follow (includes detached authors for their followers only).
+ * Feed: main ICE discovery (never shows detached authors) + read-only Lite posts.
  * Lite posts are pulled over HTTP — not written to the ICE canister.
  */
 export default function Feed({ actor, currentUserPrincipal, onUserClick, refreshKey = 0 }) {
   const [posts, setPosts] = useState([]);
   const [litePosts, setLitePosts] = useState([]);
   const [categoryMap, setCategoryMap] = useState({}); // postId string -> category
-  const [followed, setFollowed] = useState([]);
   const [blockedAuthors, setBlockedAuthors] = useState(() => new Set()); // principal text
-  const [filterMode, setFilterMode] = useState("all"); // "all" | "following"
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isSearch, setIsSearch] = useState(false);
@@ -70,20 +67,6 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
     setCategoryMap(map);
   };
 
-  const loadFollowed = async () => {
-    if (!actor || !currentUserPrincipal || !actor.getFollowedCategories) {
-      setFollowed([]);
-      return;
-    }
-    try {
-      const list = await actor.getFollowedCategories(currentUserPrincipal);
-      setFollowed(Array.isArray(list) ? list : []);
-    } catch (err) {
-      console.error(err);
-      setFollowed([]);
-    }
-  };
-
   /** Hide authors blocked either way vs the viewer */
   const loadBlockedAuthors = async (list) => {
     if (!actor || !currentUserPrincipal || !list?.length) {
@@ -117,7 +100,7 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
     setBlockedAuthors(new Set());
   };
 
-  const loadFeed = async (mode = filterMode) => {
+  const loadFeed = async () => {
     if (!actor) return;
 
     setLoading(true);
@@ -127,10 +110,7 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
 
     try {
       let result;
-      if (mode === "following" && currentUserPrincipal && actor.getFollowingPeoplePosts) {
-        // Followers' people-feed only place detached authors appear (for those who follow them)
-        result = await actor.getFollowingPeoplePosts(50);
-      } else if (currentUserPrincipal && actor.getHomeFeed) {
+      if (currentUserPrincipal && actor.getHomeFeed) {
         // Main ICE feed — never includes detached authors
         result = await actor.getHomeFeed(50);
       } else {
@@ -138,11 +118,11 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
       }
       const list = Array.isArray(result) ? result : [];
       setPosts(list);
-      const tasks = [loadCategoriesFor(list), loadFollowed(), loadBlockedAuthors(list)];
-      // Lite bridge into All feed only (read-only; skip Following / avoid noise)
-      if (mode === "all") tasks.push(loadLitePosts());
-      else setLitePosts([]);
-      await Promise.all(tasks);
+      await Promise.all([
+        loadCategoriesFor(list),
+        loadBlockedAuthors(list),
+        loadLitePosts(),
+      ]);
     } catch (err) {
       console.error(err);
       setError("Could not load posts.");
@@ -151,7 +131,7 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
     }
   };
 
-  const loadRecent = () => loadFeed("all");
+  const loadRecent = () => loadFeed();
 
   const handleSearch = async (query) => {
     if (!actor) return;
@@ -176,14 +156,14 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
   };
 
   useEffect(() => {
-    loadFeed(filterMode);
-  }, [actor, refreshKey, currentUserPrincipal, filterMode]);
+    loadFeed();
+  }, [actor, refreshKey, currentUserPrincipal]);
 
   // Reload when returning to the tab/app (e.g. phone browser resumes)
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible" && actor && !isSearch) {
-        loadFeed(filterMode);
+        loadFeed();
       }
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -192,7 +172,7 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [actor, isSearch, filterMode]);
+  }, [actor, isSearch]);
 
   const visiblePosts = useMemo(() => {
     let list = posts;
@@ -207,7 +187,7 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
 
   /** Merged All feed: ICE canister posts + read-only Lite posts, newest first. */
   const mergedFeedItems = useMemo(() => {
-    if (isSearch || filterMode !== "all") {
+    if (isSearch) {
       return visiblePosts.map((p) => ({ kind: "ice", post: p, ts: Number(p.timestamp) || 0 }));
     }
     const ice = visiblePosts.map((p) => ({
@@ -221,20 +201,7 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
       ts: Number(p.timestamp) || 0,
     }));
     return [...ice, ...lite].sort((a, b) => b.ts - a.ts);
-  }, [visiblePosts, litePosts, filterMode, isSearch]);
-
-  const toggleStyle = (active) => ({
-    background: active
-      ? "linear-gradient(135deg, rgba(56, 189, 248, 0.28) 0%, rgba(129, 140, 248, 0.28) 100%)"
-      : "rgba(255, 255, 255, 0.04)",
-    color: active ? "#e0f2fe" : "#94a3b8",
-    border: active ? "1px solid rgba(56, 189, 248, 0.45)" : "1px solid rgba(148, 163, 184, 0.18)",
-    borderRadius: "8px",
-    padding: "0.3rem 0.75rem",
-    fontSize: "0.8rem",
-    fontWeight: active ? 600 : 500,
-    cursor: "pointer",
-  });
+  }, [visiblePosts, litePosts, isSearch]);
 
   return (
     <div>
@@ -243,57 +210,15 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
       <div className="ice-page-header" style={{ marginBottom: "0.85rem" }}>
         <div>
           <h2 style={{ fontSize: "1.1rem" }}>
-            {isSearch
-              ? `Results for “${searchQuery}”`
-              : filterMode === "following"
-              ? "Following — people you follow"
-              : "Recent posts on ICE Network ICP"}
+            {isSearch ? `Results for “${searchQuery}”` : "Recent posts on ICE Network ICP"}
           </h2>
         </div>
         <div className="ice-page-actions">
-          {!isSearch && (
-            <div className="ice-tabs" style={{ marginBottom: 0, padding: "0.2rem" }}>
-              <button
-                type="button"
-                className={`ice-tab${filterMode === "all" ? " is-active" : ""}`}
-                style={{ minWidth: "auto", flex: "0 0 auto" }}
-                onClick={() => setFilterMode("all")}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                className={`ice-tab${filterMode === "following" ? " is-active" : ""}`}
-                style={{ minWidth: "auto", flex: "0 0 auto" }}
-                onClick={() => setFilterMode("following")}
-                title="People you follow (includes detached members’ posts)"
-              >
-                Following
-              </button>
-            </div>
-          )}
-          <button type="button" onClick={() => loadFeed(filterMode)} className="ice-btn">
+          <button type="button" onClick={() => loadFeed()} className="ice-btn">
             Refresh
           </button>
         </div>
       </div>
-
-      {!isSearch && filterMode === "following" && !loading && posts.length === 0 && (
-        <div
-          className="ice-glass-soft"
-          style={{
-            padding: "0.85rem 1rem",
-            marginBottom: "1rem",
-            color: "#94a3b8",
-            fontSize: "0.9rem",
-          }}
-        >
-          No posts from people you follow yet. Use{" "}
-          <strong style={{ color: "#e2e8f0" }}>Follow</strong> on someone’s profile. Detached members’
-          posts only appear here (and on their own profile), never on{" "}
-          <strong style={{ color: "#e2e8f0" }}>All</strong>.
-        </div>
-      )}
 
       {loading && <p style={{ color: "#64748b" }}>Loading…</p>}
 
@@ -318,15 +243,6 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
         >
           {isSearch ? (
             <p>No posts matched your search.</p>
-          ) : filterMode === "following" ? (
-            <>
-              <p style={{ fontSize: "1.05rem", marginBottom: "0.4rem" }}>No posts in your categories</p>
-              <p style={{ fontSize: "0.9rem" }}>
-                {followed.length
-                  ? `Following: ${followed.join(", ")}`
-                  : "Choose categories in Profile to filter the feed."}
-              </p>
-            </>
           ) : (
             <>
               <p style={{ fontSize: "1.1rem", marginBottom: "0.4rem" }}>No posts yet</p>

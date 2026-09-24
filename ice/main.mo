@@ -469,11 +469,6 @@ persistent actor Ice {
     reportsToHide : Nat;
   };
 
-  type Associates = {
-    following : [Principal];
-    followers : [Principal];
-  };
-
   /// In-app notification (follow / post / tip / payment).
   type Notification = {
     id : Nat;
@@ -493,13 +488,6 @@ persistent actor Ice {
     content : Text;
     createdAt : Time.Time;
     read : Bool;
-  };
-
-  type SubOffer = {
-    tokens : Nat;
-    priceE8s : Nat;
-    // "label" is reserved in older Motoko (dfx 0.29.x); use tierLabel
-    tierLabel : Text;
   };
 
   type PendingPayment = {
@@ -570,7 +558,7 @@ persistent actor Ice {
   private stable var tippingEnabled : Bool = true;
   private stable var tipMasterPaidEntries : [(Principal, Nat)] = [];
 
-  // ─── Creator invites (identity-linked) ─────────────────────────────────
+  // abandoned: referral growth removed
   /// Paid Joins needed before inviter gets free Join + site.
   private stable var REFERRAL_REWARD_THRESHOLD : Nat = 15;
   private stable var referralCountEntries : [(Principal, Nat)] = [];
@@ -615,7 +603,9 @@ persistent actor Ice {
   private stable var postsEntries : [(Nat, Post)] = [];
   private stable var commentsEntries : [(Nat, Comment)] = [];
   private stable var postCommentsEntries : [(Nat, [Nat])] = [];
+  // abandoned: follow graph removed
   private stable var followingEntries : [(Principal, [Principal])] = [];
+  // abandoned: follow graph removed
   private stable var followersEntries : [(Principal, [Principal])] = [];
   private stable var blocksEntries : [(Principal, [Principal])] = [];
   private stable var keywordIndexEntries : [(Text, [Nat])] = [];
@@ -656,9 +646,9 @@ persistent actor Ice {
   private transient var posts = HashMap.HashMap<Nat, Post>(0, Nat.equal, func (n: Nat) : Nat32 { Nat32.fromNat(n) });
   private transient var comments = HashMap.HashMap<Nat, Comment>(0, Nat.equal, func (n: Nat) : Nat32 { Nat32.fromNat(n) });
   private transient var postComments = HashMap.HashMap<Nat, [Nat]>(0, Nat.equal, func (n: Nat) : Nat32 { Nat32.fromNat(n) });
-  // caller -> principals they follow
+  // abandoned: follow graph removed
   private transient var following = HashMap.HashMap<Principal, [Principal]>(0, Principal.equal, Principal.hash);
-  // principal -> who follows them (reverse index)
+  // abandoned: follow graph removed
   private transient var followers = HashMap.HashMap<Principal, [Principal]>(0, Principal.equal, Principal.hash);
   // blocker -> principals they blocked
   private transient var blocks = HashMap.HashMap<Principal, [Principal]>(0, Principal.equal, Principal.hash);
@@ -846,6 +836,14 @@ persistent actor Ice {
     postCategoryEntries := [];
     followedCategoriesEntries := [];
     networkPrivateEntries := [];
+    // Legacy stables kept for upgrade layout (referral / packs / tip-unlock).
+    ignore REFERRAL_REWARD_THRESHOLD;
+    ignore tiers;
+    ignore price200E8s;
+    ignore price400E8s;
+    ignore price600E8s;
+    ignore nextPendingId;
+    migrateRegistrationFeeIfNeeded();
   };
 
   private func isNetworkPrivate(p : Principal) : Bool {
@@ -855,26 +853,13 @@ persistent actor Ice {
     }
   };
 
-  private func viewerFollowsAuthor(viewer : Principal, author : Principal) : Bool {
-    if (Principal.equal(viewer, author)) { return true };
-    switch (following.get(viewer)) {
-      case (?list) {
-        for (t in list.vals()) {
-          if (Principal.equal(t, author)) { return true };
-        };
-        false
-      };
-      case null { false };
-    }
-  };
-
-  /// Detached authors: only self, their social followers, or master may see posts.
+  /// Detached authors: public feeds hide them; only self or master may open the author page.
   private func canViewNetworkPrivateAuthor(viewer : ?Principal, author : Principal) : Bool {
     if (not isNetworkPrivate(author)) { return true };
     switch (viewer) {
       case null { false };
       case (?v) {
-        Principal.equal(v, author) or viewerFollowsAuthor(v, author) or isMaster(v)
+        Principal.equal(v, author) or isMaster(v)
       };
     }
   };
@@ -962,17 +947,6 @@ persistent actor Ice {
     };
   };
 
-  private func addFollowEdge(fromUser : Principal, toUser : Principal) {
-    switch (following.get(fromUser)) {
-      case (?list) { following.put(fromUser, principalListAdd(list, toUser)) };
-      case null { following.put(fromUser, [toUser]) };
-    };
-    switch (followers.get(toUser)) {
-      case (?list) { followers.put(toUser, principalListAdd(list, fromUser)) };
-      case null { followers.put(toUser, [fromUser]) };
-    };
-  };
-
   private func displayNameOf(p : Principal) : Text {
     switch (userProfiles.get(p)) {
       case (?pr) {
@@ -1045,28 +1019,14 @@ persistent actor Ice {
     Principal.isAnonymous(owner) or Principal.equal(owner, Principal.fromText("aaaaa-aa"))
   };
 
-  /// Extra II principals allowed to manage economy / admin (same rights as owner).
-  /// Covers NNS + app-specific Internet Identity principals for the founder.
-  // Founder II principals (NNS + app) + ops deploy identity for recovery.
-  // gmtr2 = primary master (user-confirmed).
+  /// User-facing master is gmtr2 only. Ops treasury (vm63y) is DFX_TREASURY_PRINCIPAL, not master.
   private let TRUSTED_MASTER_PRINCIPALS : [Principal] = [
     Principal.fromText("gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae"),
-    // Same founder II on frostedblocks.com when derivationOrigin is not applied
-    Principal.fromText("ogsk6-lwnep-oa422-nqvac-puciz-6fbaw-emuqb-xi6ay-ga75u-3e5rh-jae"),
-    Principal.fromText("4jitt-jjzlt-kqv7o-ldoxu-hxgme-rg2i7-4ycbj-rev22-ozcy5-7jdqf-fqe"),
-    Principal.fromText("d7fkw-eyxt4-mo3cn-ptsb4-kxexz-r2toj-cu6wy-lq5mi-uassm-a3tso-bae"),
-    Principal.fromText("zna7n-hc6xu-4jyrk-7fw73-5whiu-p5cwo-657hs-potut-ewx2g-25r6x-wae"),
-    Principal.fromText("vm63y-5g4h5-nz2ca-2ix5o-ulj6h-qhcla-ucukz-qbmij-yvcwi-lyjzr-3qe"),
   ];
 
   private func isTrustedMaster(p : Principal) : Bool {
     let t = Principal.toText(p);
     if (t == "gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae") { return true };
-    if (t == "ogsk6-lwnep-oa422-nqvac-puciz-6fbaw-emuqb-xi6ay-ga75u-3e5rh-jae") { return true };
-    if (t == "4jitt-jjzlt-kqv7o-ldoxu-hxgme-rg2i7-4ycbj-rev22-ozcy5-7jdqf-fqe") { return true };
-    if (t == "d7fkw-eyxt4-mo3cn-ptsb4-kxexz-r2toj-cu6wy-lq5mi-uassm-a3tso-bae") { return true };
-    if (t == "zna7n-hc6xu-4jyrk-7fw73-5whiu-p5cwo-657hs-potut-ewx2g-25r6x-wae") { return true };
-    if (t == "vm63y-5g4h5-nz2ca-2ix5o-ulj6h-qhcla-ucukz-qbmij-yvcwi-lyjzr-3qe") { return true };
     for (m in TRUSTED_MASTER_PRINCIPALS.vals()) {
       if (Principal.equal(m, p)) { return true };
     };
@@ -1075,9 +1035,7 @@ persistent actor Ice {
 
   private func isMaster(p : Principal) : Bool {
     if (Principal.isAnonymous(p)) { return false };
-    // Primary owner always master (once claimed)
-    if (not isOwnerUnclaimed() and Principal.equal(owner, p)) { return true };
-    // Founder II principals (NNS / app) can always manage even if owner record drifted
+    // gmtr2 only — claimed owner record must not widen master.
     isTrustedMaster(p)
   };
 
@@ -1143,15 +1101,6 @@ persistent actor Ice {
 
     usernameIndex.put(key, user);
     null
-  };
-
-  private func priceForTokens(tokenAmount : Nat) : ?Nat {
-    if (tiers.size() >= 3) {
-      if (tokenAmount == tiers[0]) { ?price200E8s }
-      else if (tokenAmount == tiers[1]) { ?price400E8s }
-      else if (tokenAmount == tiers[2]) { ?price600E8s }
-      else { null }
-    } else { null }
   };
 
   private func creditTokens(user : Principal, amount : Nat) {
@@ -1285,11 +1234,6 @@ persistent actor Ice {
   };
 
   // ─── Tokenomics / ICP pricing ───────────────────────────────────────────
-
-  /// Token packs removed — always empty.
-  public query func getSubscriptionOffers() : async [SubOffer] {
-    []
-  };
 
   private func migrateEnablePaymentsIfNeeded() {
     if (not paymentsEnabledFixV1) {
@@ -1484,34 +1428,17 @@ persistent actor Ice {
     else { "Token pack payments disabled" }
   };
 
-  /// Master: turn registration fee on/off and set fee (e8s) + bonus tokens.
+  /// Join fee is permanently off (fee-at-mint). Cannot re-enable.
   public shared(msg) func adminSetRegistrationFee(
     enabled : Bool,
     feeE8s : Nat,
     bonusTokens : Nat
   ) : async Text {
-    if (not isMaster(msg.caller)) {
-      return "Not authorized — log in with a master Internet Identity (founder II).";
-    };
-    if (enabled and feeE8s == 0) {
-      return "Fee must be > 0 e8s when registration cost is on (or turn it off)";
-    };
-    // Pin migrations so one-shot fee migrations never overwrite master choice again
-    registrationFee2IcpV1 := true;
-    registrationFee5IcpV1 := true;
-    registrationFeeEnabled := enabled;
-    // When disabling, keep previous fee so turning back on restores the last amount
-    if (feeE8s > 0) {
-      REGISTRATION_FEE_E8S := feeE8s;
-    };
-    REGISTRATION_BONUS_TOKENS := bonusTokens;
-    if (enabled) {
-      "Registration fee ON: " # Nat.toText(REGISTRATION_FEE_E8S) # " e8s ("
-        # Nat.toText(REGISTRATION_FEE_E8S / 100_000_000) # " ICP), bonus "
-        # Nat.toText(bonusTokens) # " tokens"
-    } else {
-      "Registration fee OFF (free signup). Bonus tokens: " # Nat.toText(bonusTokens)
-    }
+    ignore msg;
+    ignore enabled;
+    ignore feeE8s;
+    ignore bonusTokens;
+    "Join fee permanently off (fee-at-mint). Cannot re-enable."
   };
 
   /// Master: move primary owner record (optional; trusted masters keep admin rights either way).
@@ -1554,26 +1481,6 @@ persistent actor Ice {
     "Master owner set to " # Principal.toText(newOwner)
   };
 
-  /// Deprecated — token packs removed. Use adminSetActionFees + depositIcp.
-  public shared(msg) func adminSetTokenPacks(
-    t1 : Nat, p1 : Nat,
-    t2 : Nat, p2 : Nat,
-    t3 : Nat, p3 : Nat
-  ) : async Text {
-    ignore t1; ignore p1; ignore t2; ignore p2; ignore t3; ignore p3;
-    if (not isMaster(msg.caller)) { return "Not authorized" };
-    "Token packs removed. Set per-action ICP fees instead."
-  };
-
-  public shared(msg) func adminSetPrices(p1 : Nat, p2 : Nat, p3 : Nat) : async Text {
-    if (not isMaster(msg.caller)) { return "Not authorized" };
-    if (p1 == 0 or p2 == 0 or p3 == 0) { return "Prices must be > 0 e8s" };
-    price200E8s := p1;
-    price400E8s := p2;
-    price600E8s := p3;
-    "Prices updated"
-  };
-
   public query(msg) func getTreasuryStats() : async TreasuryStats {
     if (not isMaster(msg.caller)) {
       return { paymentsEnabled = false; totalIcpReceivedE8s = 0; pendingCount = 0 };
@@ -1610,82 +1517,6 @@ persistent actor Ice {
       else if (amountE8s > maxConvertible) { maxConvertible }
       else { amountE8s };
     await convertIceIcpToFactoryCycles(amt)
-  };
-
-  public query(msg) func getPendingPayments() : async [(Nat, PendingPayment)] {
-    if (not isMaster(msg.caller)) { return [] };
-    let buf = Buffer.Buffer<(Nat, PendingPayment)>(0);
-    for ((id, p) in pendingPayments.entries()) {
-      buf.add((id, p));
-    };
-    Buffer.toArray(buf)
-  };
-
-  /// Token packs removed — use depositIcp instead.
-  public shared(msg) func buyTokenPack(_tokenAmount : Nat) : async Text {
-    ignore msg;
-    "Token packs are removed. Deposit ICP to your prepaid balance instead."
-  };
-
-  /// Legacy: record a manual purchase request (no ICP pulled). Prefer buyTokenPack.
-  public shared(msg) func requestPaidSubscription(tokenAmount : Nat) : async Text {
-    if (isBannedUser(msg.caller)) { return "You are banned" };
-    migrateEnablePaymentsIfNeeded();
-    if (not paymentsEnabled) {
-      return "Payments are not live yet. Master can enable Token pack payments in Master controls.";
-    };
-
-    switch (priceForTokens(tokenAmount)) {
-      case null { return "Invalid tier. Choose a current pack size." };
-      case (?price) {
-        let id = nextPendingId;
-        nextPendingId += 1;
-        pendingPayments.put(id, {
-          user = msg.caller;
-          tokens = tokenAmount;
-          priceE8s = price;
-          requestedAt = Time.now();
-        });
-        "Manual request #" # Nat.toText(id) # " recorded for " #
-          Nat.toText(tokenAmount) # " tokens (" # Nat.toText(price) # " e8s). " #
-          "Prefer automatic Buy with ICP. Confirm only after you verify ICP arrived."
-      };
-    }
-  };
-
-  /// Master confirms a *manual* request after verifying ICP off-chain. Prefer buyTokenPack (auto).
-  public shared(msg) func adminConfirmPayment(pendingId : Nat) : async Text {
-    if (not isMaster(msg.caller)) { return "Not authorized" };
-
-    switch (pendingPayments.get(pendingId)) {
-      case null { return "Pending payment not found" };
-      case (?p) {
-        creditTokens(p.user, p.tokens);
-        // Do NOT inflate treasury here unless ICP was real — still track for bookkeeping
-        totalIcpReceivedE8s += p.priceE8s;
-        pendingPayments.delete(pendingId);
-        pushNotification(
-          p.user,
-          "payment",
-          msg.caller,
-          "Payment confirmed — " # Nat.toText(p.tokens) # " tokens credited",
-          p.tokens,
-        );
-        "Confirmed (manual). Credited " # Nat.toText(p.tokens) # " tokens. " #
-          "Only use this after verifying ICP was received."
-      };
-    }
-  };
-
-  public shared(msg) func adminRejectPayment(pendingId : Nat) : async Text {
-    if (not isMaster(msg.caller)) { return "Not authorized" };
-    switch (pendingPayments.get(pendingId)) {
-      case null { return "Pending payment not found" };
-      case (?_) {
-        pendingPayments.delete(pendingId);
-        "Pending payment rejected and removed"
-      };
-    }
   };
 
   public query func getLimits() : async Limits {
@@ -1731,20 +1562,6 @@ persistent actor Ice {
     "Limits updated"
   };
 
-  public shared(msg) func adminGrantTokens(to : Principal, amount : Nat) : async Bool {
-    if (not isMaster(msg.caller)) { return false };
-    if (amount == 0) { return true };
-    creditTokens(to, amount);
-    pushNotification(
-      to,
-      "payment",
-      msg.caller,
-      "You received " # Nat.toText(amount) # " tokens",
-      amount,
-    );
-    true
-  };
-
   /// Master: mark a principal registered without charging ICP (payment recovery / II principal mismatch).
   /// If username is empty, only flips the registered flag (keeps existing profile if any).
   public shared(msg) func adminMarkRegistered(
@@ -1781,7 +1598,7 @@ persistent actor Ice {
 
   /// Master: II principal mismatch recovery — copy membership to a new II without Join fee.
   /// Marks `to` registered; optionally reassigns username from `from` if `to` has none.
-  /// Does not move posts/tokens (use adminGrantTokens / profile save separately).
+  /// Does not move posts (profile save is separate).
   public shared(msg) func adminMigrateMembership(from : Principal, to : Principal) : async Text {
     if (not isMaster(msg.caller)) { return "Not authorized" };
     if (Principal.isAnonymous(from) or Principal.isAnonymous(to)) {
@@ -1929,43 +1746,6 @@ persistent actor Ice {
         "Unmarked registered: " # Principal.toText(user)
       };
     }
-  };
-
-  /// Master: remove tokens from a user (capped at their current balance).
-  public shared(msg) func adminRemoveTokens(from : Principal, amount : Nat) : async Text {
-    if (not isMaster(msg.caller)) { return "Not authorized" };
-    if (amount == 0) { return "Amount must be greater than 0" };
-    var bal = getUserBalance(from);
-    bal := maybeReset(from, bal);
-    if (bal.tokens == 0) {
-      return "User already has 0 tokens";
-    };
-    let removed = if (amount > bal.tokens) { bal.tokens } else { amount };
-    let remaining = bal.tokens - removed;
-    userBalances.put(from, {
-      tokens = remaining;
-      postsThisMonth = bal.postsThisMonth;
-      postsToday = bal.postsToday;
-      lastReset = bal.lastReset;
-      lastDailyReset = bal.lastDailyReset;
-    });
-    "Removed " # Nat.toText(removed) # " tokens. Remaining: " # Nat.toText(remaining)
-  };
-
-  /// Master: set user balance to zero.
-  public shared(msg) func adminClearTokens(from : Principal) : async Text {
-    if (not isMaster(msg.caller)) { return "Not authorized" };
-    var bal = getUserBalance(from);
-    bal := maybeReset(from, bal);
-    let had = bal.tokens;
-    userBalances.put(from, {
-      tokens = 0;
-      postsThisMonth = bal.postsThisMonth;
-      postsToday = bal.postsToday;
-      lastReset = bal.lastReset;
-      lastDailyReset = bal.lastDailyReset;
-    });
-    "Cleared " # Nat.toText(had) # " tokens. Balance is now 0"
   };
 
   public shared(msg) func adminHidePost(postId : Nat) : async Bool {
@@ -2224,63 +2004,16 @@ persistent actor Ice {
     registrationFeeEnabled
   };
 
-  /// Factory mint: waive 10 ICP site fee for masters and unlocked referral rewards.
+  /// Factory mint: waive 10 ICP site fee for master only.
   public query func isMintFeeWaived(user : Principal) : async Bool {
-    isMaster(user) or isReferralFreeEligible(user)
-  };
-
-  private func isReferralFreeEligible(p : Principal) : Bool {
-    switch (referralFreeEligible.get(p)) {
-      case (?true) {
-        switch (referralFreeClaimed.get(p)) {
-          case (?true) { false };
-          case _ { true };
-        }
-      };
-      case _ { false };
-    }
-  };
-
-  private func creditPaidReferral(newUser : Principal, referralCode : Text) {
-    if (Text.size(referralCode) == 0) { return };
-    switch (referredBy.get(newUser)) {
-      case (?_) { return };
-      case null {};
-    };
-    let code = Text.trim(referralCode, #char ' ');
-    // Cheap validation — Principal.fromText still traps on garbage; keep codes II-shaped
-    if (Text.size(code) < 20 or Text.size(code) > 80) { return };
-    if (not Text.contains(code, #text "-")) { return };
-    // Only accept characters typical of principal text
-    for (c in code.chars()) {
-      let ok =
-        (c >= 'a' and c <= 'z') or
-        (c >= '0' and c <= '9') or
-        c == '-';
-      if (not ok) { return };
-    };
-    let inviter = Principal.fromText(code);
-    if (Principal.isAnonymous(inviter) or Principal.equal(inviter, newUser)) {
-      return
-    };
-    referredBy.put(newUser, inviter);
-    let prev = switch (referralCount.get(inviter)) {
-      case (?n) { n };
-      case null { 0 };
-    };
-    let next = prev + 1;
-    referralCount.put(inviter, next);
-    if (next >= REFERRAL_REWARD_THRESHOLD) {
-      referralFreeEligible.put(inviter, true);
-    };
+    isMaster(user)
   };
 
   private func registerInternal(
     caller : Principal,
     username : Text,
     bio : Text,
-    avatarURL : Text,
-    referralCode : Text
+    avatarURL : Text
   ) : async Text {
     migrateRegistrationFeeIfNeeded();
     if (Principal.isAnonymous(caller)) {
@@ -2296,8 +2029,7 @@ persistent actor Ice {
       case null {};
     };
 
-    let rewardFree = isReferralFreeEligible(caller);
-    let chargeFee = registrationFeeEnabled and not isMaster(caller) and not rewardFree;
+    let chargeFee = registrationFeeEnabled and not isMaster(caller);
 
     if (chargeFee) {
       let fee = REGISTRATION_FEE_E8S;
@@ -2313,7 +2045,6 @@ persistent actor Ice {
       userProfiles.put(caller, { username; bio; avatarURL });
       registeredUsers.put(caller, true);
       creditTokens(caller, REGISTRATION_BONUS_TOKENS);
-      creditPaidReferral(caller, referralCode);
       "Registered. Legacy Join fee paid. Site mint is separate on Factory if still required."
     } else {
       userProfiles.put(caller, { username; bio; avatarURL });
@@ -2321,10 +2052,7 @@ persistent actor Ice {
       if (REGISTRATION_BONUS_TOKENS > 0) {
         creditTokens(caller, REGISTRATION_BONUS_TOKENS);
       };
-      if (rewardFree) {
-        referralFreeClaimed.put(caller, true);
-        "Registered (referral reward — free Join + site). Invite more creators!"
-      } else if (isMaster(caller)) {
+      if (isMaster(caller)) {
         "Registered (master — no fee). " # Nat.toText(REGISTRATION_BONUS_TOKENS) # " tokens credited."
       } else {
         "Registered (free). Mint your site when ready — 10 ICP at mint covers your canister and network."
@@ -2334,174 +2062,7 @@ persistent actor Ice {
 
   /// Register with unique username. Master never pays.
   public shared(msg) func register(username : Text, bio : Text, avatarURL : Text) : async Text {
-    await registerInternal(msg.caller, username, bio, avatarURL, "")
-  };
-
-  /// Identity-linked invite: referralCode = inviter's II principal text (`?ref=`).
-  public shared(msg) func registerWithReferral(
-    username : Text,
-    bio : Text,
-    avatarURL : Text,
-    referralCode : Text
-  ) : async Text {
-    await registerInternal(msg.caller, username, bio, avatarURL, referralCode)
-  };
-
-  public shared query(msg) func getMyReferralStatus() : async {
-    invitePrincipal : Text;
-    count : Nat;
-    threshold : Nat;
-    eligible : Bool;
-    claimed : Bool;
-  } {
-    let p = msg.caller;
-    let count = switch (referralCount.get(p)) { case (?n) { n }; case null { 0 } };
-    let claimed = switch (referralFreeClaimed.get(p)) { case (?true) { true }; case _ { false } };
-    let eligible = isReferralFreeEligible(p);
-    {
-      invitePrincipal = Principal.toText(p);
-      count;
-      threshold = REFERRAL_REWARD_THRESHOLD;
-      eligible;
-      claimed;
-    }
-  };
-
-  public shared(msg) func adminSetReferralThreshold(n : Nat) : async Text {
-    if (not isMaster(msg.caller)) { return "Not authorized" };
-    if (n == 0) { return "Threshold must be at least 1" };
-    REFERRAL_REWARD_THRESHOLD := n;
-    "Referral threshold set to " # Nat.toText(n) # " paid Joins"
-  };
-
-  public query func getReferralThreshold() : async Nat {
-    REFERRAL_REWARD_THRESHOLD
-  };
-
-  /// Master campaign tracker: every inviter count + who referred whom (paid Joins only).
-  public shared query(msg) func adminGetReferralTracker() : async {
-    authorized : Bool;
-    threshold : Nat;
-    totalPaidReferrals : Nat;
-    uniqueInviters : Nat;
-    unlockedCount : Nat;
-    claimedCount : Nat;
-    inviters : [{
-      principal : Text;
-      username : Text;
-      count : Nat;
-      eligible : Bool;
-      claimed : Bool;
-    }];
-    links : [{
-      newUser : Text;
-      newUsername : Text;
-      inviter : Text;
-      inviterUsername : Text;
-    }];
-  } {
-    if (not isMaster(msg.caller)) {
-      return {
-        authorized = false;
-        threshold = REFERRAL_REWARD_THRESHOLD;
-        totalPaidReferrals = 0;
-        uniqueInviters = 0;
-        unlockedCount = 0;
-        claimedCount = 0;
-        inviters = [];
-        links = [];
-      };
-    };
-
-    type InviterRow = {
-      principal : Text;
-      username : Text;
-      count : Nat;
-      eligible : Bool;
-      claimed : Bool;
-    };
-    type LinkRow = {
-      newUser : Text;
-      newUsername : Text;
-      inviter : Text;
-      inviterUsername : Text;
-    };
-
-    let invBuf = Buffer.Buffer<InviterRow>(referralCount.size());
-    var unlocked : Nat = 0;
-    var claimedN : Nat = 0;
-    for ((p, count) in referralCount.entries()) {
-      let claimed = switch (referralFreeClaimed.get(p)) {
-        case (?true) { true };
-        case _ { false };
-      };
-      let flaggedEligible = switch (referralFreeEligible.get(p)) {
-        case (?true) { true };
-        case _ { false };
-      };
-      let eligible = isReferralFreeEligible(p);
-      if (flaggedEligible or claimed) { unlocked += 1 };
-      if (claimed) { claimedN += 1 };
-      invBuf.add({
-        principal = Principal.toText(p);
-        username = displayNameOf(p);
-        count;
-        eligible;
-        claimed;
-      });
-    };
-    let invSorted = Array.sort<InviterRow>(
-      Buffer.toArray(invBuf),
-      func(a : InviterRow, b : InviterRow) : { #less; #equal; #greater } {
-        // Higher paid-invite count first
-        if (a.count > b.count) { #less } else if (a.count < b.count) { #greater } else { #equal }
-      },
-    );
-
-    let linkBuf = Buffer.Buffer<LinkRow>(referredBy.size());
-    for ((newU, inv) in referredBy.entries()) {
-      linkBuf.add({
-        newUser = Principal.toText(newU);
-        newUsername = displayNameOf(newU);
-        inviter = Principal.toText(inv);
-        inviterUsername = displayNameOf(inv);
-      });
-    };
-
-    {
-      authorized = true;
-      threshold = REFERRAL_REWARD_THRESHOLD;
-      totalPaidReferrals = referredBy.size();
-      uniqueInviters = referralCount.size();
-      unlockedCount = unlocked;
-      claimedCount = claimedN;
-      inviters = invSorted;
-      links = Buffer.toArray(linkBuf);
-    }
-  };
-
-  /// Inviter view: principals/usernames who paid Join through this II's `?ref=`.
-  public shared query(msg) func getMyReferralInvites() : async {
-    count : Nat;
-    threshold : Nat;
-    invites : [{ principal : Text; username : Text }];
-  } {
-    let me = msg.caller;
-    let count = switch (referralCount.get(me)) { case (?n) { n }; case null { 0 } };
-    let buf = Buffer.Buffer<{ principal : Text; username : Text }>(count);
-    for ((newU, inv) in referredBy.entries()) {
-      if (Principal.equal(inv, me)) {
-        buf.add({
-          principal = Principal.toText(newU);
-          username = displayNameOf(newU);
-        });
-      };
-    };
-    {
-      count;
-      threshold = REFERRAL_REWARD_THRESHOLD;
-      invites = Buffer.toArray(buf);
-    }
+    await registerInternal(msg.caller, username, bio, avatarURL)
   };
 
   /// Save profile (registered users or master). Usernames are unique (case-insensitive).
@@ -2655,32 +2216,6 @@ persistent actor Ice {
     Buffer.toArray(buf)
   };
 
-  /// Follow target. Fails if anonymous, self, banned, or either side blocked.
-  public shared(msg) func follow(target : Principal) : async Text {
-    if (not requireAuth(msg.caller)) { return "Not authenticated" };
-    if (isBannedUser(msg.caller)) { return "You are banned" };
-    if (Principal.equal(msg.caller, target)) { return "Cannot follow yourself" };
-    if (Principal.isAnonymous(target)) { return "Invalid target" };
-    if (hasBlocked(target, msg.caller)) { return "You are blocked by this user" };
-    if (hasBlocked(msg.caller, target)) { return "Unblock this user first" };
-    addFollowEdge(msg.caller, target);
-    pushNotification(
-      target,
-      "follow",
-      msg.caller,
-      displayNameOf(msg.caller) # " started following you",
-      0,
-    );
-    "Following"
-  };
-
-  public shared(msg) func unfollow(target : Principal) : async Text {
-    if (not requireAuth(msg.caller)) { return "Not authenticated" };
-    if (Principal.equal(msg.caller, target)) { return "Cannot unfollow yourself" };
-    removeFollowEdge(msg.caller, target);
-    "Unfollowed"
-  };
-
   /// Block target: store block and remove any follow edge both directions.
   public shared(msg) func block(target : Principal) : async Text {
     if (not requireAuth(msg.caller)) { return "Not authenticated" };
@@ -2708,28 +2243,6 @@ persistent actor Ice {
     "Unblocked"
   };
 
-  public query func getFollowing(user : Principal) : async [Principal] {
-    switch (following.get(user)) {
-      case (?list) { list };
-      case null { [] };
-    }
-  };
-
-  public query func getFollowers(user : Principal) : async [Principal] {
-    switch (followers.get(user)) {
-      case (?list) { list };
-      case null { [] };
-    }
-  };
-
-  /// following + followers for Associates UI
-  public query func getAssociates(me : Principal) : async Associates {
-    {
-      following = switch (following.get(me)) { case (?l) { l }; case null { [] } };
-      followers = switch (followers.get(me)) { case (?l) { l }; case null { [] } };
-    }
-  };
-
   /// True if `me` has blocked `other` (caller-centric block list)
   public query func isBlocked(me : Principal, other : Principal) : async Bool {
     hasBlocked(me, other)
@@ -2751,42 +2264,6 @@ persistent actor Ice {
   /// Batch: which of `authors` are blocked either way vs `viewer` (for feed filtering)
   public query func filterBlockedAuthors(viewer : Principal, authors : [Principal]) : async [Principal] {
     Array.filter<Principal>(authors, func (a) { eitherBlocked(viewer, a) })
-  };
-
-  /// Deprecated — packs removed.
-  public shared(msg) func subscribe(_tokenAmount : Nat) : async Text {
-    ignore msg;
-    "Token packs are removed. Deposit ICP to your prepaid balance."
-  };
-
-  private func spendTokensInternal(_user : Principal, _amount : Nat) : Bool {
-    // Soft tokens deprecated
-    true
-  };
-
-  public shared(msg) func spendTokens(_amount : Nat) : async Bool {
-    if (isBannedUser(msg.caller)) { return false };
-    true
-  };
-
-  /// Charge prepaid ICP for a DM when message fees are on. Master is free.
-  public shared(msg) func chargeForMessage() : async Bool {
-    if (isBannedUser(msg.caller)) { return false };
-    if (not isUserRegistered(msg.caller) and not isMaster(msg.caller)) {
-      return false;
-    };
-    if (isMaster(msg.caller)) { return true };
-    if (not messageFeeEnabled or messageFeeE8s == 0) { return true };
-    spendIcpE8sInternal(msg.caller, messageFeeE8s)
-  };
-
-  /// Refund a message ICP charge if messaging canister rejected the send.
-  public shared(msg) func refundMessageCharge() : async Bool {
-    if (isBannedUser(msg.caller)) { return false };
-    if (isMaster(msg.caller)) { return true };
-    if (not messageFeeEnabled or messageFeeE8s == 0) { return true };
-    creditIcpE8s(msg.caller, messageFeeE8s);
-    true
   };
 
   /// Legacy name — returns prepaid ICP e8s (not soft tokens).
@@ -2836,8 +2313,6 @@ persistent actor Ice {
       };
     }
   };
-
-  public query func getTiers() : async [Nat] { tiers };
 
   public shared(msg) func makePost(content : Text, imageURL : ?Text, category : Text) : async ?Nat {
     if (isBannedUser(msg.caller)) { return null };
@@ -2894,52 +2369,7 @@ persistent actor Ice {
     ?postId
   };
 
-  private func tipMasterPaidOf(user : Principal) : Nat {
-    switch (tipMasterPaid.get(user)) {
-      case (?n) { n };
-      case null { 0 };
-    }
-  };
-
-  private func hasUnlockedNetworkTipping(user : Principal) : Bool {
-    if (isMaster(user)) { return true };
-    tipMasterPaidOf(user) >= tipUnlockMinE8s
-  };
-
-  private func recordTipToMaster(from : Principal, amountE8s : Nat) {
-    if (amountE8s == 0) { return };
-    tipMasterPaid.put(from, tipMasterPaidOf(from) + amountE8s);
-  };
-
-  public query func getTipUnlockMinE8s() : async Nat { tipUnlockMinE8s };
-
-  public query(msg) func getMyTipUnlockStatus() : async {
-    unlocked : Bool;
-    paidToMasterE8s : Nat;
-    requiredE8s : Nat;
-  } {
-    let paid = tipMasterPaidOf(msg.caller);
-    {
-      unlocked = isMaster(msg.caller) or (paid >= tipUnlockMinE8s);
-      paidToMasterE8s = paid;
-      requiredE8s = tipUnlockMinE8s;
-    }
-  };
-
-  public query func hasUnlockedTipping(user : Principal) : async Bool {
-    hasUnlockedNetworkTipping(user)
-  };
-
-  /// Master: minimum cumulative tip to master (e8s) required before tipping others.
-  public shared(msg) func adminSetTipUnlockMinE8s(minE8s : Nat) : async Text {
-    if (not isMaster(msg.caller)) { return "Not authorized" };
-    if (minE8s == 0) { return "Minimum must be greater than 0" };
-    tipUnlockMinE8s := minE8s;
-    "Tip unlock minimum set to " # Nat.toText(minE8s) # " e8s"
-  };
-
-  /// Tip ICP: sender II must approve this canister; ICP is pulled then paid to recipient's II principal on the ledger.
-  /// Tipping anyone except master requires prior cumulative tips to master >= tipUnlockMinE8s.
+  /// Tip ICP when tipping is enabled. No unlock gate.
   public shared(msg) func tipIcp(to : Principal, amountE8s : Nat) : async Text {
     if (not tippingEnabled) { return "Tipping is turned off" };
     if (Principal.isAnonymous(msg.caller)) { return "Not authenticated" };
@@ -2954,12 +2384,6 @@ persistent actor Ice {
     };
     if (not isUserRegistered(to) and not isMaster(to)) {
       return "Recipient is not registered on ICE";
-    };
-
-    let tippingMaster = isMaster(to);
-    if (not tippingMaster and not hasUnlockedNetworkTipping(msg.caller)) {
-      return "Tip the master profile first (at least " # Nat.toText(tipUnlockMinE8s) #
-        " e8s ICP total) to unlock tipping others on the network.";
     };
 
     // Pull from sender's II ledger (requires prior icrc2_approve)
@@ -2984,17 +2408,6 @@ persistent actor Ice {
         } else {
           totalIcpReceivedE8s := 0;
         };
-        if (tippingMaster) {
-          recordTipToMaster(msg.caller, amountE8s);
-        };
-        let unlockNote =
-          if (tippingMaster and hasUnlockedNetworkTipping(msg.caller)) {
-            " Network tipping unlocked."
-          } else if (tippingMaster) {
-            let paid = tipMasterPaidOf(msg.caller);
-            let left = if (paid >= tipUnlockMinE8s) { 0 } else { tipUnlockMinE8s - paid };
-            " Tip " # Nat.toText(left) # " e8s more to master to unlock tipping others."
-          } else { "" };
         pushNotification(
           to,
           "tip",
@@ -3003,7 +2416,7 @@ persistent actor Ice {
           amountE8s,
         );
         "Tipped " # Nat.toText(amountE8s) # " e8s ICP to " # displayNameOf(to) #
-          " (sent to their Internet Identity ledger account)." # unlockNote
+          " (sent to their Internet Identity ledger account)."
       };
       case (#Err _) {
         // Best-effort refund to sender's II
@@ -3356,7 +2769,6 @@ persistent actor Ice {
   };
 
   /// Main ICE feed (logged-in or same as public): never includes detached (network-private) authors.
-  /// Detached users' posts are only on their profile and on followers' people-feed.
   public shared query(msg) func getHomeFeed(limit : Nat) : async [Post] {
     ignore msg.caller;
     let buf = Buffer.Buffer<Post>(0);
@@ -3366,35 +2778,6 @@ persistent actor Ice {
       switch (posts.get(id)) {
         case (?p) {
           if (not p.isHidden and not isNetworkPrivate(p.author)) { buf.add(p) };
-        };
-        case null {};
-      };
-      i += 1;
-    };
-    Buffer.toArray(buf)
-  };
-
-  /// Followers' feed: posts from people the caller follows (social Follow).
-  /// This is the only feed that shows detached authors (to their followers).
-  public shared query(msg) func getFollowingPeoplePosts(limit : Nat) : async [Post] {
-    let viewer = msg.caller;
-    if (Principal.isAnonymous(viewer)) { return [] };
-    switch (following.get(viewer)) {
-      case null { return [] };
-      case (?list) {
-        if (list.size() == 0) { return [] };
-      };
-    };
-    let buf = Buffer.Buffer<Post>(0);
-    var i : Nat = 0;
-    while (i < nextPostId and buf.size() < limit) {
-      let id = nextPostId - 1 - i;
-      switch (posts.get(id)) {
-        case (?p) {
-          // Include followed authors only (detached allowed here if viewer follows them)
-          if (not p.isHidden and viewerFollowsAuthor(viewer, p.author)) {
-            buf.add(p);
-          };
         };
         case null {};
       };
@@ -3421,7 +2804,7 @@ persistent actor Ice {
     Buffer.toArray(buf)
   };
 
-  /// Author posts visible to caller: self, followers of detached authors, or anyone if not detached.
+  /// Author posts visible to caller: self or master if detached, or anyone if not detached.
   public shared query(msg) func getPostsByAuthorForViewer(author : Principal, limit : Nat) : async [Post] {
     if (not canViewNetworkPrivateAuthor(?msg.caller, author)) { return [] };
     let buf = Buffer.Buffer<Post>(0);
@@ -3451,7 +2834,7 @@ persistent actor Ice {
     if (Principal.isAnonymous(user)) { return "Invalid user" };
     if (isPrivate) {
       networkPrivate.put(user, true);
-      "User marked network-private (detached site): posts only for self + followers"
+      "User marked network-private (detached site): posts only for self + master"
     } else {
       networkPrivate.delete(user);
       "User network-private cleared (reattached): posts public again"
