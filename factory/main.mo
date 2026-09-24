@@ -316,6 +316,11 @@ persistent actor class Factory() = this {
     };
   } = actor ("6jf55-2qaaa-aaaan-q6mwq-cai");
 
+  /// Fee-at-mint: waive site mint fee (masters / referral unlock).
+  private transient let ICE_MINT_FEE : actor {
+    isMintFeeWaived : shared query Principal -> async Bool;
+  } = actor ("6jf55-2qaaa-aaaan-q6mwq-cai");
+
   /// ICE social: mark author posts private after detach / public after reattach.
   private transient let ICE_NETWORK_PRIVACY : actor {
     setUserNetworkPrivate : shared (user : Principal, isPrivate : Bool) -> async Text;
@@ -401,6 +406,10 @@ persistent actor class Factory() = this {
   private let MIN_FACTORY_BALANCE : Nat = CREATE_FEE_CYCLES + INITIAL_SITE_CYCLES + 100_000_000_000;
 
   // Default service fees (admin-adjustable)
+  /// One charge: site mint = canister cycles + network maintain (fee-at-mint product rule).
+  private stable var MINT_FEE_E8S : Nat = 1_000_000_000; // 10 ICP
+  /// Share of mint fee converted to factory cycles via CMC (rest → DFX ops / network).
+  private stable var MINT_CYCLES_SHARE_E8S : Nat = 270_000_000; // 2.7 ICP
   private stable var DETACH_FEE_E8S : Nat = 10_000_000; // 0.1 ICP
   private stable var RELINK_FEE_E8S : Nat = 10_000_000; // 0.1 ICP
   /// Custom domain connect fee (ICRC-2 from site owner II).
@@ -785,6 +794,38 @@ persistent actor class Factory() = this {
     })
   };
 
+
+  /// After mint fee lands on factory: convert cycles share via CMC; surplus to DFX ops.
+  private func distributeMintFeeProceeds(feeE8s : Nat) : async Text {
+    if (feeE8s == 0) { return "No mint fee" };
+    let mintShare = if (feeE8s >= MINT_CYCLES_SHARE_E8S) { MINT_CYCLES_SHARE_E8S } else { feeE8s };
+    let rest = if (feeE8s > mintShare) { feeE8s - mintShare } else { 0 };
+    var note = "";
+    if (mintShare > 0) {
+      note #= (await convertIcpToFactoryCycles(mintShare)) # " ";
+    };
+    if (rest > ICP_TRANSFER_FEE_E8S) {
+      let toDfx = rest - ICP_TRANSFER_FEE_E8S;
+      let tr2 = await IcpLedgerExt.icrc1_transfer({
+        from_subaccount = null;
+        to = { owner = DFX_CONTROLLER; subaccount = null };
+        amount = toDfx;
+        fee = ?ICP_TRANSFER_FEE_E8S;
+        memo = null;
+        created_at_time = null;
+      });
+      switch (tr2) {
+        case (#Ok _) {
+          note #= "Network ops " # Nat.toText(toDfx) # " e8s to DFX. ";
+        };
+        case (#Err _) {
+          note #= "Network ops transfer failed (ICP remains on factory). ";
+        };
+      };
+    };
+    if (Text.size(note) == 0) { "Mint fee held on factory" } else { note }
+  };
+
   private func chargeIcp(from : Principal, amountE8s : Nat) : async ?Text {
     if (amountE8s == 0) { return null };
     let transferResult = await IcpLedger.icrc2_transfer_from({
@@ -1114,6 +1155,9 @@ persistent actor class Factory() = this {
   };
 
   public query func getFees() : async {
+    mintFeeE8s : Nat;
+    mintCyclesShareE8s : Nat;
+    mintNetworkOpsE8s : Nat;
     detachFeeE8s : Nat;
     relinkFeeE8s : Nat;
     domainConnectFeeE8s : Nat;
@@ -1121,7 +1165,13 @@ persistent actor class Factory() = this {
     topupIcpE8sPerT : Nat;
     totalIcpReceivedE8s : Nat;
   } {
+    let ops = if (MINT_FEE_E8S > MINT_CYCLES_SHARE_E8S) {
+      MINT_FEE_E8S - MINT_CYCLES_SHARE_E8S
+    } else { 0 };
     {
+      mintFeeE8s = MINT_FEE_E8S;
+      mintCyclesShareE8s = MINT_CYCLES_SHARE_E8S;
+      mintNetworkOpsE8s = ops;
       detachFeeE8s = DETACH_FEE_E8S;
       relinkFeeE8s = RELINK_FEE_E8S;
       domainConnectFeeE8s = DOMAIN_CONNECT_FEE_E8S;
@@ -1129,6 +1179,15 @@ persistent actor class Factory() = this {
       topupIcpE8sPerT = TOPUP_ICP_E8S_PER_T;
       totalIcpReceivedE8s;
     }
+  };
+
+  public shared(msg) func adminSetMintFee(feeE8s : Nat, cyclesShareE8s : Nat) : async Text {
+    if (not isOwner(msg.caller)) { return "Not authorized" };
+    if (feeE8s == 0) { return "Mint fee must be > 0" };
+    if (cyclesShareE8s > feeE8s) { return "Cycles share cannot exceed mint fee" };
+    MINT_FEE_E8S := feeE8s;
+    MINT_CYCLES_SHARE_E8S := cyclesShareE8s;
+    "Mint fee set to " # Nat.toText(feeE8s) # " e8s (cycles share " # Nat.toText(cyclesShareE8s) # ")"
   };
 
   public shared(msg) func adminSetFees(
@@ -1223,7 +1282,7 @@ persistent actor class Factory() = this {
     try {
       let reg = await ICE_MAIN.isRegistered(user);
       if (reg) { null } else {
-        ?"Pay the ICE registration fee and complete Join ICE first. Your website is created only after payment."
+        ?"Join ICE first (free username). Then mint your site — 10 ICP covers your canister and the network."
       }
     } catch (e) {
       ?("Could not verify ICE registration: " # Error.message(e))
@@ -1450,6 +1509,16 @@ persistent actor class Factory() = this {
     #ok(cid)
   };
 
+
+  private func mintFeeWaived(user : Principal) : async Bool {
+    try {
+      await ICE_MINT_FEE.isMintFeeWaived(user)
+    } catch (_) {
+      // If ICE query fails, still allow master via local isOwner on skip path only
+      false
+    }
+  };
+
   private func provisionFor(user : Principal, skipRegCheck : Bool) : async CreateUserSiteResult {
     if (Principal.isAnonymous(user)) {
       return #err("Anonymous cannot create a site");
@@ -1486,15 +1555,32 @@ persistent actor class Factory() = this {
       return #err("Stored module is not WASM (bad magic). Re-upload with appendUserSiteWasmHex");
     };
 
-    // Every mint: auto-convert 2.7 ICP (from join-fee share on factory) → factory cycles
+    // Fee-at-mint: charge 10 ICP once for a fresh mint (not on resume / admin / waived).
+    // Hold ICP on factory until mint succeeds, then split cycles vs network ops.
+    var chargedMintFee = false;
+    if (not skipRegCheck) {
+      let waived = await mintFeeWaived(user);
+      if (not waived and MINT_FEE_E8S > 0) {
+        switch (await chargeIcp(user, MINT_FEE_E8S)) {
+          case (?err) { return #err(err) };
+          case null {};
+        };
+        chargedMintFee := true;
+      };
+    };
+
+    // Best-effort: convert any prior ICP on factory into cycles before create
     ignore await convertIcpToFactoryCycles(ICP_PER_MINT_TO_CYCLES_E8S);
 
     let bal = ExperimentalCycles.balance();
     if (bal < MIN_FACTORY_BALANCE) {
+      if (chargedMintFee) {
+        ignore await refundIcp(user, MINT_FEE_E8S);
+      };
       return #err(
         "Factory cycles too low: have " # Nat.toText(bal)
           # " need at least " # Nat.toText(MIN_FACTORY_BALANCE)
-          # ". Need 2.7 ICP on factory (from join fee) to auto-convert, or top up factory cycles."
+          # ". Mint fee refunded if charged. Ops must top up factory cycles."
       );
     };
 
@@ -1519,6 +1605,9 @@ persistent actor class Factory() = this {
         sender_canister_version = null;
       })
     } catch (e) {
+      if (chargedMintFee) {
+        ignore await refundIcp(user, MINT_FEE_E8S);
+      };
       return #err("create_canister failed: " # Error.message(e));
     };
 
@@ -1527,7 +1616,19 @@ persistent actor class Factory() = this {
     putPending(cid, user, "created", "", createdAt);
 
     // From created → install/bootstrap → controllers → maps → registry
-    await completeFromStage(user, cid, "created")
+    let result = await completeFromStage(user, cid, "created");
+    switch (result) {
+      case (#ok _) {
+        if (chargedMintFee) {
+          ignore await distributeMintFeeProceeds(MINT_FEE_E8S);
+        };
+      };
+      case (#err _) {
+        // Pending mint retained — ICP stays on factory for resume (no second charge).
+        // Do not refund: canister may already exist.
+      };
+    };
+    result
   };
 
   public query func listPendingMints() : async [PendingMint] {
@@ -1576,13 +1677,14 @@ persistent actor class Factory() = this {
     }
   };
 
-  /// Caller must already be registered on ICE (registration fee paid).
+  /// Caller must already be registered on ICE (free Join).
+  /// Fresh mint charges MINT_FEE_E8S (10 ICP) unless waived; retries/resume do not re-charge.
   /// Idempotent: returns existing linked site if present.
   public shared(msg) func createUserSite() : async CreateUserSiteResult {
     await provisionFor(msg.caller, false)
   };
 
-  /// Same as createUserSite — preferred name for post-Join retries (no extra ICP).
+  /// Same as createUserSite — preferred name for post-Join retries (no second mint fee if pending/linked).
   public shared(msg) func ensureUserSite() : async CreateUserSiteResult {
     await provisionFor(msg.caller, false)
   };

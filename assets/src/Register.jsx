@@ -3,6 +3,7 @@ import { Principal } from "@dfinity/principal";
 import { getIceCanisterId } from "./icpLedger";
 import {
   ASSETS_CANISTER_ID,
+  FACTORY_CANISTER_ID,
   createFactoryActor,
   createAnonymousFactoryActor,
   createAnonymousIceActor,
@@ -15,13 +16,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CANONICAL_APP_URL = "https://frostedblocks.com/";
 
 /**
- * First-time Join ICE:
+ * First-time Join ICE (fee-at-mint):
  * 1) Gate on factory mint capacity (no pay if factory cannot mint)
- * 2) Pay registration fee via II approve (if enabled)
- * 3) Register username on ICE
- * 4) ensureUserSite with retries (no second Join fee)
- *
- * Join fee (if enabled) is separate ICP via II approve.
+ * 2) Free username register on ICE
+ * 3) Approve 10 ICP mint fee to Factory (canister + network) if required
+ * 4) ensureUserSite — Factory charges once; retries/resume do not re-charge
  */
 export default function Register({ actor, identity, onRegistered, onCancel }) {
   const [username, setUsername] = useState("");
@@ -32,7 +31,9 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
   const [siteId, setSiteId] = useState("");
   const [recoveryCode, setRecoveryCode] = useState("");
   const [feeEnabled, setFeeEnabled] = useState(true);
-  const [feeE8s, setFeeE8s] = useState(200_000_000);
+  const [feeE8s, setFeeE8s] = useState(1_000_000_000); // 10 ICP mint default
+  const [mintCyclesShareE8s, setMintCyclesShareE8s] = useState(270_000_000);
+  const [mintNetworkOpsE8s, setMintNetworkOpsE8s] = useState(730_000_000);
   const [bonusTokens, setBonusTokens] = useState(0);
   const [anyActionFeeOn, setAnyActionFeeOn] = useState(false);
   const [isMaster, setIsMaster] = useState(false);
@@ -111,28 +112,41 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
         }
 
         if (actor.getEconomyConfig) {
-          const cfg = await actor.getEconomyConfig();
-          setFeeEnabled(!!cfg.registrationFeeEnabled);
-          setFeeE8s(Number(cfg.registrationFeeE8s) || 500_000_000);
-          setBonusTokens(Number(cfg.registrationBonusTokens) || 200);
-          const postOn = !!cfg.postFeeEnabled && Number(cfg.postFeeE8s ?? 0) > 0;
-          const loveOn = !!cfg.loveFeeEnabled && Number(cfg.loveFeeE8s ?? 0) > 0;
-          const msgOn = !!cfg.messageFeeEnabled && Number(cfg.messageFeeE8s ?? 0) > 0;
-          setAnyActionFeeOn(postOn || loveOn || msgOn);
+          try {
+            const cfg = await actor.getEconomyConfig();
+            setBonusTokens(Number(cfg.registrationBonusTokens) || 0);
+            const postOn = !!cfg.postFeeEnabled && Number(cfg.postFeeE8s ?? 0) > 0;
+            const loveOn = !!cfg.loveFeeEnabled && Number(cfg.loveFeeE8s ?? 0) > 0;
+            const msgOn = !!cfg.messageFeeEnabled && Number(cfg.messageFeeE8s ?? 0) > 0;
+            setAnyActionFeeOn(postOn || loveOn || msgOn);
+          } catch (_) {
+            setAnyActionFeeOn(false);
+          }
         } else {
           setAnyActionFeeOn(false);
-          try {
-            setFeeE8s(Number(await actor.getRegistrationFeeE8s()) || 200_000_000);
-          } catch (_) {
-            setFeeE8s(200_000_000);
-          }
-          try {
-            setFeeEnabled(
-              actor.isRegistrationFeeEnabled ? !!(await actor.isRegistrationFeeEnabled()) : true
-            );
-          } catch (_) {
+        }
+
+        // Fee-at-mint: one 10 ICP charge on Factory, not ICE registration
+        try {
+          const factory = await createFactoryActor(identity);
+          if (factory.getFees) {
+            const fees = await factory.getFees();
+            const mint = Number(fees.mintFeeE8s ?? 1_000_000_000) || 1_000_000_000;
+            const cycles = Number(fees.mintCyclesShareE8s ?? 270_000_000) || 270_000_000;
+            const ops =
+              Number(fees.mintNetworkOpsE8s ?? Math.max(0, mint - cycles)) ||
+              Math.max(0, mint - cycles);
+            setFeeE8s(mint);
+            setMintCyclesShareE8s(cycles);
+            setMintNetworkOpsE8s(ops);
+            setFeeEnabled(mint > 0);
+          } else {
+            setFeeE8s(1_000_000_000);
             setFeeEnabled(true);
           }
+        } catch (_) {
+          setFeeE8s(1_000_000_000);
+          setFeeEnabled(true);
         }
 
         await loadCapacity();
@@ -147,14 +161,21 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
   const rewardFree = referralEligible && !referralClaimed;
   const mustPay = !isMaster && feeEnabled && feeE8s > 0 && !rewardFree;
   const feeIcp = (feeE8s / 100_000_000).toFixed(feeE8s % 100_000_000 === 0 ? 0 : 4);
+  const cyclesIcp = (mintCyclesShareE8s / 100_000_000).toFixed(
+    mintCyclesShareE8s % 100_000_000 === 0 ? 0 : 4
+  );
+  const opsIcp = (mintNetworkOpsE8s / 100_000_000).toFixed(
+    mintNetworkOpsE8s % 100_000_000 === 0 ? 0 : 4
+  );
   const canMint = capacity == null ? true : !!capacity.canMint;
   /** New users must confirm they don't already have an ICE account before pay/mint */
   const mayCreateNew =
     isMaster || ackNoPriorAccount || registeredNoSite;
-  const canSubmit =
-    mayCreateNew &&
-    (isMaster || !mustPay || nnsFeeReady) &&
-    (canMint || registeredNoSite);
+  /** Free username — no Factory approve, no mint capacity gate */
+  const canSubmitFree = mayCreateNew;
+  /** Site mint — needs capacity + II approve when fee is on */
+  const canSubmitMint =
+    canMint && (isMaster || !mustPay || nnsFeeReady);
 
   const lookupPriorAccount = async () => {
     const raw = priorPrincipal.trim();
@@ -311,78 +332,31 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
     setSiteId("");
 
     try {
-      // Fresh capacity check before charging Join fee
-      const cap = await loadCapacity();
-      if (cap && !cap.canMint && !registeredNoSite) {
-        setError(
-          (cap.message || "Factory cannot create websites right now.") +
-            "\n\nDo not pay Join until the network can mint sites. Master/ops must top up factory cycles or upload WASM."
-        );
-        setLoading(false);
-        setStep("");
-        return;
+      setStep(isMaster ? "Creating master account…" : "Creating free username…");
+      const refCode = inviteRef || "";
+      const result =
+        typeof actor.registerWithReferral === "function"
+          ? await actor.registerWithReferral(name, bio.trim(), "", refCode)
+          : await actor.register(name, bio.trim(), "");
+      const text = typeof result === "string" ? result : "";
+      if (/^Registered/i.test(text) || /referral reward/i.test(text)) {
+        clearInviteRef();
       }
-
-      if (!registeredNoSite) {
-        if (!isMaster && mustPay && !nnsFeeReady) {
-          setError(
-            "Approve the registration fee only if you are joining as a new member. Principal: " +
-              (identity.getPrincipal?.().toText?.() || "")
-          );
-          setLoading(false);
-          return;
-        }
-
-        setStep(
-          mustPay
-            ? "Charging ICP & registering…"
-            : isMaster
-            ? "Creating master account…"
-            : "Creating account…"
-        );
-        const refCode = inviteRef || "";
-        const result =
-          typeof actor.registerWithReferral === "function"
-            ? await actor.registerWithReferral(name, bio.trim(), "", refCode)
-            : await actor.register(name, bio.trim(), "");
-        const text = typeof result === "string" ? result : "";
-        if (/^Registered/i.test(text) || /referral reward/i.test(text)) {
-          clearInviteRef();
-        }
-        // Already registered is OK — still provision site
-        const regOk =
-          /^Registered/i.test(text) ||
-          /success/i.test(text) ||
-          /Already registered/i.test(text) ||
-          /referral reward/i.test(text);
-        if (!regOk) {
-          setError(text || "Registration failed.");
-          setStep("");
-          setLoading(false);
-          return;
-        }
-        setRegisteredNoSite(true);
-      }
-
-      const site = await provisionWebsite(3);
-      if (!site.ok) {
-        setRegisteredNoSite(true);
-        setError(
-          site.error +
-            "\n\nYou are registered on ICE — Join fee is not charged again. Use “Retry website only” below or open My Site later."
-        );
+      const regOk =
+        /^Registered/i.test(text) ||
+        /success/i.test(text) ||
+        /Already registered/i.test(text) ||
+        /referral reward/i.test(text);
+      if (!regOk) {
+        setError(text || "Registration failed.");
         setStep("");
-        if (onRegistered) {
-          onRegistered({ registered: true, siteId: null, siteError: site.error });
-        }
         setLoading(false);
         return;
       }
-
-      setRegisteredNoSite(false);
-      setStep("Website ready!");
+      setRegisteredNoSite(true);
+      setStep("Username ready — mint a site when you want (optional).");
       if (onRegistered) {
-        onRegistered({ registered: true, siteId: site.siteId });
+        onRegistered({ registered: true, siteId: null });
       }
     } catch (err) {
       console.error(err);
@@ -395,18 +369,34 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
 
   const retrySiteOnly = async () => {
     if (!identity) return;
+    if (!isMaster && mustPay && !nnsFeeReady) {
+      setError(
+        "Approve the " +
+          feeIcp +
+          " ICP mint fee (Factory) before minting. Principal: " +
+          (identity.getPrincipal?.().toText?.() || "")
+      );
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const cap = await loadCapacity();
       if (cap && !cap.canMint) {
-        setError(cap.message || "Factory cannot mint right now.");
+        setError(
+          (cap.message || "Factory cannot mint right now.") +
+            "\n\nDo not approve mint ICP until minting is ready."
+        );
         setLoading(false);
         return;
       }
       const site = await provisionWebsite(3);
       if (!site.ok) {
-        setError(site.error);
+        setRegisteredNoSite(true);
+        setError(
+          site.error +
+            "\n\nIf Factory already charged and the canister was created, ICP is held for resume — use Mint site again (no second charge while pending). If charge failed before create, you were refunded."
+        );
         setStep("");
       } else {
         setRegisteredNoSite(false);
@@ -416,7 +406,7 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
         }
       }
     } catch (e) {
-      setError(e?.message || "Retry failed");
+      setError(e?.message || "Mint failed");
     } finally {
       setLoading(false);
     }
@@ -648,7 +638,9 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
           fontWeight: 600,
         }}
       >
-        Registration is required to post and use ICE. Any fee is shown below before you confirm.
+        Create a free username to post on ICE. Your personal site canister is optional —{" "}
+        <strong style={{ color: "#fbbf24" }}>10 ICP at mint</strong> pays for your canister and
+        keeps the network running.
       </p>
       <p
         style={{
@@ -696,7 +688,7 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
           </div>
           {!canMint && mustPay && (
             <div style={{ marginTop: "0.35rem", fontWeight: 700 }}>
-              Do not approve Join ICP until minting is ready.
+              Do not approve mint ICP until minting is ready.
             </div>
           )}
         </div>
@@ -714,8 +706,8 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
           lineHeight: 1.45,
         }}
       >
-        <strong>Already paid?</strong> Do <em>not</em> approve ICP again. Log out and log back in
-        (same II). If registered but no website, use “Retry website only” (never re-charges Join).
+        <strong>Already paid mint?</strong> Do <em>not</em> approve ICP again. Log out and log back in
+        (same II). If registered but no website, use “Mint site” (no second charge while a mint is pending). Mid-mint fail after create holds ICP for resume — labeled on error.
         {identity?.getPrincipal && (
           <code
             style={{
@@ -735,15 +727,16 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
           <>Master account — registration is free. Your personal website canister is created next.</>
         ) : (
           <>
-            Create your username and personal site
+            Username is free. Personal site mint
             {mustPay ? (
               <>
-                . One-time join fee:{" "}
-                <strong style={{ color: "#fbbf24" }}>{feeIcp} ICP</strong> (approve only when you
-                submit — fund this II from NNS if needed)
+                :{" "}
+                <strong style={{ color: "#fbbf24" }}>{feeIcp} ICP</strong> once (
+                {cyclesIcp} ICP → your canister cycles, {opsIcp} ICP → network ops). Approve with II
+                before mint.
               </>
             ) : (
-              <> (registration is free)</>
+              <> is free for you</>
             )}
             .
           </>
@@ -751,11 +744,13 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
       </p>
 
       <ol style={{ color: "#64748b", fontSize: "0.8rem", lineHeight: 1.55, paddingLeft: "1.2rem" }}>
+        <li>Free username on ICE (post without a site if you want)</li>
         {mustPay && (
-          <li>Only if you join: approve the one-time fee (not required to stay logged in)</li>
+          <li>
+            Approve {feeIcp} ICP mint fee to Factory ({cyclesIcp} cycles / {opsIcp} network)
+          </li>
         )}
-        <li>Username registered on ICE</li>
-        <li>Personal site canister created and linked (auto-retry if mint is busy)</li>
+        <li>Optional: Mint site (separate click, 10 ICP when fees are on)</li>
       </ol>
       <p style={{ color: "#475569", fontSize: "0.75rem", lineHeight: 1.45 }}>
         After joining you can tip others in ICP (when tipping is enabled) from profiles.
@@ -811,17 +806,17 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
           <span>
             I confirm I do <strong>not</strong> already have an ICE account or personal website. If
             you might, use <em>I already have an account</em> instead — joining again can mint a
-            second canister and charge Join again.
+            second canister and charge mint again.
           </span>
         </label>
       )}
 
-      {mustPay && !isMaster && !registeredNoSite && mayCreateNew && (
+      {mustPay && !isMaster && registeredNoSite && (
         <NnsIcpFee
           identity={identity}
           feeE8s={BigInt(feeE8s)}
-          spenderCanisterId={getIceCanisterId()}
-          purpose="registration fee"
+          spenderCanisterId={FACTORY_CANISTER_ID}
+          purpose={`site mint (${cyclesIcp} ICP canister cycles + ${opsIcp} ICP network)`}
           onReadyChange={onFeeReady}
         />
       )}
@@ -864,26 +859,20 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
           <button
             type="submit"
             className="ice-btn-primary"
-            disabled={loading || !username.trim() || !canSubmit}
+            disabled={loading || !username.trim() || !canSubmitFree}
             style={{
               width: "100%",
               marginTop: "0.65rem",
-              opacity: !canSubmit ? 0.55 : 1,
+              opacity: !canSubmitFree ? 0.55 : 1,
             }}
           >
             {loading
               ? step || "Working…"
               : !mayCreateNew
               ? "Confirm you’re new (checkbox) first"
-              : !canMint
-              ? "Join blocked — factory cannot mint"
-              : mustPay && !nnsFeeReady
-              ? "Pay via NNS first, then register"
-              : mustPay
-              ? `Register & create website (${feeIcp} ICP paid)`
               : isMaster
-              ? "Create master account + website"
-              : "Create your account"}
+              ? "Create master username (free)"
+              : "Create username (free)"}
           </button>
         )}
       </form>
@@ -892,11 +881,19 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
         <button
           type="button"
           className="ice-btn-primary"
-          disabled={loading || !canMint}
+          disabled={loading || !canSubmitMint}
           onClick={retrySiteOnly}
           style={{ width: "100%", marginTop: "0.75rem" }}
         >
-          {loading ? step || "Retrying website…" : "Retry website only (no Join fee)"}
+          {loading
+            ? step || "Minting site…"
+            : !canMint
+            ? "Mint blocked — factory not ready"
+            : mustPay && !nnsFeeReady
+            ? `Approve ${feeIcp} ICP, then mint site`
+            : mustPay
+            ? `Mint site (${feeIcp} ICP)`
+            : "Mint site (free for you)"}
         </button>
       )}
 
