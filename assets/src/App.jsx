@@ -319,7 +319,28 @@ export default function App() {
         return;
       }
 
-      const client = await AuthClient.create();
+      // Chrome flicker fix: default AuthClient idle callback does logout + location.reload(),
+      // which can loop when a stale II session is restored. Soft-clear session instead.
+      const client = await AuthClient.create({
+        idleOptions: {
+          disableDefaultIdleCallback: true,
+          onIdle: async () => {
+            try {
+              await client.logout();
+            } catch (_) {
+              /* ignore */
+            }
+            setIdentity(null);
+            setActor(null);
+            setRegistered(null);
+            setCanisterMaster(false);
+            setShowJoin(false);
+            setOwnedSites([]);
+            setActiveSiteId(null);
+            setBootError("Signed out after inactivity. Sign in again when you are ready.");
+          },
+        },
+      });
       setAuthClient(client);
       if (await client.isAuthenticated()) {
         const id = client.getIdentity();
