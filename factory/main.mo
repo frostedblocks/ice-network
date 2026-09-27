@@ -321,6 +321,10 @@ persistent actor class Factory() = this {
     isMintFeeWaived : shared query Principal -> async Bool;
   } = actor ("6jf55-2qaaa-aaaan-q6mwq-cai");
 
+  /// Stripe Connect backend IC principal — seeded into new user sites as trustedRecorder.
+  /// Set via adminSetConnectBackend. Null = skip seed until configured.
+  private stable var connectBackendPrincipal : ?Principal = null;
+
   /// ICE social: mark author posts private after detach / public after reattach.
   private transient let ICE_NETWORK_PRIVACY : actor {
     setUserNetworkPrivate : shared (user : Principal, isPrivate : Bool) -> async Text;
@@ -360,6 +364,8 @@ persistent actor class Factory() = this {
       lowCycles : Bool;
       warning : ?Text;
     };
+    /// Seed Stripe Connect backend as trusted receipt recorder (no secrets).
+    seedTrustedRecorder : shared (Principal) -> async Text;
   };
 
   /// Factory-side domain registry (enforces detach gate; synced to site when possible).
@@ -1378,6 +1384,15 @@ persistent actor class Factory() = this {
         prof.bio,
         prof.avatarURL
       );
+      // Seed Connect backend as trusted receipt recorder when configured
+      switch (connectBackendPrincipal) {
+        case (?backend) {
+          try {
+            ignore await siteActor(cid).seedTrustedRecorder(backend);
+          } catch (_) {};
+        };
+        case null {};
+      };
     } catch (_) {};
     null
   };
