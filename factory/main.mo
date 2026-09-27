@@ -3122,6 +3122,39 @@ persistent actor class Factory() = this {
   };
 
   /// Public docs for UI: who is on the standard controller set.
+  public shared(msg) func adminSetConnectBackend(p : Principal) : async Text {
+    if (not isOwner(msg.caller)) { return "Not authorized" };
+    if (Principal.isAnonymous(p)) { return "Invalid principal" };
+    connectBackendPrincipal := ?p;
+    "Connect backend principal set to " # Principal.toText(p)
+  };
+
+  public shared(msg) func adminClearConnectBackend() : async Text {
+    if (not isOwner(msg.caller)) { return "Not authorized" };
+    connectBackendPrincipal := null;
+    "Connect backend cleared"
+  };
+
+  public query func getConnectBackend() : async ?Principal {
+    connectBackendPrincipal
+  };
+
+  /// Best-effort seed on an existing site.
+  public shared(msg) func adminSeedTrustedRecorderOnSite(site : Principal) : async Text {
+    if (not isOwner(msg.caller)) { return "Not authorized" };
+    switch (connectBackendPrincipal) {
+      case null { "Connect backend not configured — call adminSetConnectBackend first" };
+      case (?backend) {
+        try {
+          let r = await siteActor(site).seedTrustedRecorder(backend);
+          "seedTrustedRecorder: " # r
+        } catch (e) {
+          "seedTrustedRecorder failed: " # Error.message(e)
+        }
+      };
+    }
+  };
+
   public query func getControllerPolicy() : async {
     roles : [(Text, Text)];
     factoryMustRemain : Bool;
