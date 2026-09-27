@@ -150,6 +150,42 @@ persistent actor class UserSite(initOwner : Principal) = this {
     domainConnectedAt : Int;
   };
 
+
+  // ---------- Store / Stripe public (no secrets on-canister) ----------
+
+  public type SiteFormat = { #social; #store };
+
+  public type Product = {
+    id : Nat;
+    title : Text;
+    description : Text;
+    priceCents : Nat;
+    currency : Text;
+    imageURL : ?Text;
+    active : Bool;
+    createdAt : Int;
+    updatedAt : Int;
+  };
+
+  public type StripePublicConfig = {
+    accountId : Text;
+    publishableKey : Text;
+  };
+
+  /// Public receipt summary — no buyer email/name.
+  public type Receipt = {
+    id : Nat;
+    productId : Nat;
+    buyerRef : Text; // Stripe Checkout Session id
+    amountCents : Nat;
+    currency : Text;
+    recordedAt : Int;
+    recorder : Principal;
+  };
+
+  public type ProductResult = { #ok : Product; #err : Text };
+  public type ReceiptResult = { #ok : Receipt; #err : Text };
+
   // Low-cycles warning threshold (2 T cycles)
   private let LOW_CYCLES_THRESHOLD : Nat = 2_000_000_000_000;
   /// Photo library limits (owner storage on this canister only).
@@ -217,6 +253,22 @@ persistent actor class UserSite(initOwner : Principal) = this {
   private stable var lastCyclesCheck : Int = 0;
   private stable var cyclesAtCheck : Nat = 0;
 
+
+  // Store format + catalog + Stripe public config + receipts (append-only after cyclesAtCheck)
+  private stable var siteFormat : SiteFormat = #social;
+  private stable var nextProductId : Nat = 1;
+  private stable var productsEntries : [(Nat, Product)] = [];
+  private stable var stripeAccountId : Text = "";
+  private stable var stripePublishableKey : Text = "";
+  private stable var nextReceiptId : Nat = 1;
+  private stable var receiptsEntries : [(Nat, Receipt)] = [];
+  private stable var trustedRecordersEntries : [(Principal, Bool)] = [];
+
+  private transient var products = HashMap.HashMap<Nat, Product>(0, Nat.equal, natHash);
+  private transient var receipts = HashMap.HashMap<Nat, Receipt>(0, Nat.equal, natHash);
+  private transient var trustedRecorders = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+
+
   system func preupgrade() {
     pagesEntries := Iter.toArray(pages.entries());
     settingsEntries := Iter.toArray(settings.entries());
@@ -225,6 +277,9 @@ persistent actor class UserSite(initOwner : Principal) = this {
     followingEntries := Iter.toArray(following.entries());
     feedEntries := Buffer.toArray(localFeed);
     photosEntries := Iter.toArray(photos.entries());
+    productsEntries := Iter.toArray(products.entries());
+    receiptsEntries := Iter.toArray(receipts.entries());
+    trustedRecordersEntries := Iter.toArray(trustedRecorders.entries());
   };
 
   system func postupgrade() {
@@ -240,6 +295,15 @@ persistent actor class UserSite(initOwner : Principal) = this {
     photos := HashMap.fromIter<Nat, StoredPhoto>(
       photosEntries.vals(), photosEntries.size(), Nat.equal, natHash
     );
+    products := HashMap.fromIter<Nat, Product>(
+      productsEntries.vals(), productsEntries.size(), Nat.equal, natHash
+    );
+    receipts := HashMap.fromIter<Nat, Receipt>(
+      receiptsEntries.vals(), receiptsEntries.size(), Nat.equal, natHash
+    );
+    trustedRecorders := HashMap.fromIter<Principal, Bool>(
+      trustedRecordersEntries.vals(), trustedRecordersEntries.size(), Principal.equal, Principal.hash
+    );
     pagesEntries := [];
     settingsEntries := [];
     featuresEntries := [];
@@ -247,6 +311,9 @@ persistent actor class UserSite(initOwner : Principal) = this {
     followingEntries := [];
     feedEntries := [];
     photosEntries := [];
+    productsEntries := [];
+    receiptsEntries := [];
+    trustedRecordersEntries := [];
   };
 
   private func isOwner(p : Principal) : Bool {
@@ -1284,4 +1351,246 @@ persistent actor class UserSite(initOwner : Principal) = this {
       "Owner already set — only factory can reassign via syncOwner"
     }
   };
+
+  // ---------- Store APIs (security: owner CRUD; recorder-only receipts; public Stripe ids only) ----------
+
+  private func isTrustedRecorder(p : Principal) : Bool {
+    switch (trustedRecorders.get(p)) {
+      case (?true) { true };
+      case _ { false };
+    }
+  };
+
+  private func isFactoryCaller(p : Principal) : Bool {
+    if (isFactory(p)) { return true };
+    // Hard-coded mainnet factory (same pattern as syncOwner)
+    Principal.equal(p, Principal.fromText("xfwx3-7yaaa-aaaas-qgxpq-cai"))
+  };
+
+  public shared(msg) func setFormat(f : SiteFormat) : async Text {
+    if (not isOwner(msg.caller)) { return "Not authorized" };
+    siteFormat := f;
+    switch (f) {
+      case (#social) { "Format set to social" };
+      case (#store) { "Format set to store" };
+    }
+  };
+
+  public query func getFormat() : async SiteFormat { siteFormat };
+
+  public shared(msg) func createProduct(
+    title : Text,
+    description : Text,
+    priceCents : Nat,
+    currency : Text,
+    imageURL : ?Text
+  ) : async ProductResult {
+    if (not isOwner(msg.caller)) { return #err("Not authorized") };
+    if (Text.size(title) == 0) { return #err("Title required") };
+    if (priceCents == 0) { return #err("Price must be > 0") };
+    let cur = if (Text.size(currency) == 0) { "usd" } else { Text.toLowercase(currency) };
+    let now = Time.now();
+    let id = nextProductId;
+    nextProductId += 1;
+    let prod : Product = {
+      id;
+      title;
+      description;
+      priceCents;
+      currency = cur;
+      imageURL;
+      active = true;
+      createdAt = now;
+      updatedAt = now;
+    };
+    products.put(id, prod);
+    #ok(prod)
+  };
+
+  public shared(msg) func updateProduct(
+    id : Nat,
+    title : Text,
+    description : Text,
+    priceCents : Nat,
+    currency : Text,
+    imageURL : ?Text,
+    active : Bool
+  ) : async Text {
+    if (not isOwner(msg.caller)) { return "Not authorized" };
+    switch (products.get(id)) {
+      case null { "Product not found" };
+      case (?old) {
+        if (Text.size(title) == 0) { return "Title required" };
+        if (priceCents == 0) { return "Price must be > 0" };
+        let cur = if (Text.size(currency) == 0) { old.currency } else { Text.toLowercase(currency) };
+        products.put(id, {
+          id;
+          title;
+          description;
+          priceCents;
+          currency = cur;
+          imageURL;
+          active;
+          createdAt = old.createdAt;
+          updatedAt = Time.now();
+        });
+        "Updated"
+      };
+    }
+  };
+
+  public shared(msg) func deleteProduct(id : Nat) : async Text {
+    if (not isOwner(msg.caller)) { return "Not authorized" };
+    switch (products.get(id)) {
+      case null { "Product not found" };
+      case (?old) {
+        products.put(id, {
+          id = old.id;
+          title = old.title;
+          description = old.description;
+          priceCents = old.priceCents;
+          currency = old.currency;
+          imageURL = old.imageURL;
+          active = false;
+          createdAt = old.createdAt;
+          updatedAt = Time.now();
+        });
+        "Deactivated"
+      };
+    }
+  };
+
+  public query func listProducts() : async [Product] {
+    let buf = Buffer.Buffer<Product>(products.size());
+    for ((_, p) in products.entries()) {
+      if (p.active) { buf.add(p) };
+    };
+    Buffer.toArray(buf)
+  };
+
+  public query func listAllProducts() : async [Product] {
+    // Owner catalog including inactive — gated at FE; query is public but inactive are soft-deleted.
+    // Prefer owner-only list via listProductsActive + listProductsOwner.
+    let buf = Buffer.Buffer<Product>(products.size());
+    for ((_, p) in products.entries()) { buf.add(p) };
+    Buffer.toArray(buf)
+  };
+
+  public query func getProduct(id : Nat) : async ?Product {
+    products.get(id)
+  };
+
+  /// Owner-only write of Stripe *public* Connect account id + publishable key.
+  /// Intended path: Express OAuth completes → owner FE writes (no secret keys).
+  public shared(msg) func setStripePublic(accountId : Text, publishableKey : Text) : async Text {
+    if (not isOwner(msg.caller)) { return "Not authorized" };
+    if (Text.size(accountId) < 4) { return "Invalid account id" };
+    if (Text.size(publishableKey) < 8) { return "Invalid publishable key" };
+    // Reject secret-looking keys
+    if (Text.startsWith(publishableKey, #text "sk_")) {
+      return "Secret keys are not allowed on-canister"
+    };
+    stripeAccountId := accountId;
+    stripePublishableKey := publishableKey;
+    "Stripe public config saved"
+  };
+
+  public shared(msg) func clearStripePublic() : async Text {
+    if (not isOwner(msg.caller)) { return "Not authorized" };
+    stripeAccountId := "";
+    stripePublishableKey := "";
+    "Cleared"
+  };
+
+  public query func getStripePublic() : async ?StripePublicConfig {
+    if (Text.size(stripeAccountId) == 0) { null } else {
+      ?{ accountId = stripeAccountId; publishableKey = stripePublishableKey }
+    }
+  };
+
+  /// Factory seeds Connect backend principal after mint.
+  public shared(msg) func seedTrustedRecorder(p : Principal) : async Text {
+    if (not isFactoryCaller(msg.caller)) { return "Not authorized" };
+    if (Principal.isAnonymous(p)) { return "Invalid principal" };
+    trustedRecorders.put(p, true);
+    "Trusted recorder seeded"
+  };
+
+  public shared(msg) func addTrustedRecorder(p : Principal) : async Text {
+    if (not isOwner(msg.caller) and not isFactoryCaller(msg.caller)) {
+      return "Not authorized"
+    };
+    if (Principal.isAnonymous(p)) { return "Invalid principal" };
+    trustedRecorders.put(p, true);
+    "Added"
+  };
+
+  public shared(msg) func removeTrustedRecorder(p : Principal) : async Text {
+    if (not isOwner(msg.caller) and not isFactoryCaller(msg.caller)) {
+      return "Not authorized"
+    };
+    trustedRecorders.delete(p);
+    "Removed"
+  };
+
+  public shared query(msg) func listTrustedRecorders() : async [Principal] {
+    if (not isOwner(msg.caller) and not isFactoryCaller(msg.caller)) {
+      return []
+    };
+    let buf = Buffer.Buffer<Principal>(trustedRecorders.size());
+    for ((p, on) in trustedRecorders.entries()) {
+      if (on) { buf.add(p) };
+    };
+    Buffer.toArray(buf)
+  };
+
+  /// Connect backend only (trustedRecorders). No buyer PII.
+  public shared(msg) func recordReceipt(
+    productId : Nat,
+    buyerRef : Text,
+    amountCents : Nat,
+    currency : Text
+  ) : async ReceiptResult {
+    if (not isTrustedRecorder(msg.caller)) {
+      return #err("Not authorized — trusted recorder only")
+    };
+    if (Text.size(buyerRef) == 0) { return #err("buyerRef required") };
+    if (amountCents == 0) { return #err("amount required") };
+    switch (products.get(productId)) {
+      case null { return #err("Product not found") };
+      case (?prod) {
+        // Defense in depth: amount should match product (backend also reads canister)
+        if (amountCents != prod.priceCents) {
+          return #err("Amount does not match product price")
+        };
+        let cur = if (Text.size(currency) == 0) { prod.currency } else { Text.toLowercase(currency) };
+        let id = nextReceiptId;
+        nextReceiptId += 1;
+        let r : Receipt = {
+          id;
+          productId;
+          buyerRef;
+          amountCents;
+          currency = cur;
+          recordedAt = Time.now();
+          recorder = msg.caller;
+        };
+        receipts.put(id, r);
+        #ok(r)
+      };
+    }
+  };
+
+  public query func getReceipt(id : Nat) : async ?Receipt {
+    receipts.get(id)
+  };
+
+  public shared query(msg) func listReceipts() : async [Receipt] {
+    if (not isOwner(msg.caller)) { return [] };
+    let buf = Buffer.Buffer<Receipt>(receipts.size());
+    for ((_, r) in receipts.entries()) { buf.add(r) };
+    Buffer.toArray(buf)
+  };
+
 };
+
