@@ -4,6 +4,10 @@ import {
   publicSiteHash,
 } from "./actors";
 
+const CONNECT_ORIGIN = String(import.meta.env.VITE_CONNECT_API_ORIGIN || "").replace(/\/$/, "");
+const STORE_DISCLOSURE =
+  "You pay the seller via Stripe. Frostblocks does not hold this payment.";
+
 function pairKey(entry) {
   if (Array.isArray(entry)) return entry[0];
   if (entry && typeof entry === "object") return entry[0] ?? entry._0_;
@@ -120,6 +124,32 @@ function unwrapOptText(v) {
   return String(v);
 }
 
+function formatVariant(v) {
+  if (!v || typeof v !== "object") return "social";
+  if ("store" in v) return "store";
+  if ("social" in v) return "social";
+  return "social";
+}
+
+function formatPrice(cents, currency = "usd") {
+  const n = typeof cents === "bigint" ? Number(cents) : Number(cents);
+  if (!Number.isFinite(n)) return "—";
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: String(currency || "usd").toUpperCase(),
+    }).format(n / 100);
+  } catch {
+    return `$${(n / 100).toFixed(2)}`;
+  }
+}
+
+function productIdKey(id) {
+  if (id == null) return "";
+  if (typeof id === "bigint") return id.toString();
+  return String(id);
+}
+
 /**
  * Public read-only personal website viewer.
  * URL: #/site/<canisterId>[/<pageId>] or ?site=<id>&page=<page>
@@ -143,6 +173,32 @@ export default function PublicSite({
   const [bannerUrl, setBannerUrl] = useState("");
   const [activePageId, setActivePageId] = useState(initialPage || "profile");
   const [copied, setCopied] = useState(false);
+  const [siteFormat, setSiteFormat] = useState("social");
+  const [products, setProducts] = useState([]);
+  const [buyBusyId, setBuyBusyId] = useState(null);
+  const [buyError, setBuyError] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      const flag =
+        params.get("checkout") ||
+        params.get("payment") ||
+        params.get("stripe");
+      if (flag === "success" || params.get("checkout") === "success") {
+        setPaymentNote("Payment submitted — seller will see receipt");
+        params.delete("checkout");
+        params.delete("payment");
+        params.delete("stripe");
+        const qs = params.toString();
+        const next = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash || ""}`;
+        window.history.replaceState(null, "", next);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const load = useCallback(async () => {
     if (!siteId || !isLikelyCanisterId(siteId)) {
@@ -167,6 +223,24 @@ export default function PublicSite({
           site.listPhotos ? site.listPhotos().catch(() => []) : [],
           site.getBannerURL ? site.getBannerURL().catch(() => "") : "",
         ]);
+
+      let fmt = "social";
+      try {
+        if (site.getFormat) fmt = formatVariant(await site.getFormat());
+      } catch {
+        fmt = "social";
+      }
+      setSiteFormat(fmt);
+
+      let prodList = [];
+      if (fmt === "store") {
+        try {
+          prodList = site.listProducts ? await site.listProducts() : [];
+        } catch {
+          prodList = [];
+        }
+      }
+      setProducts(Array.isArray(prodList) ? prodList : []);
 
       setProfile(prof);
       const normalizedPhotos = (Array.isArray(photoList) ? photoList : [])
@@ -203,9 +277,13 @@ export default function PublicSite({
       setDomain(domainSt);
       setPosts(Array.isArray(feed) ? feed : []);
 
-      // Resolve active page
+      // Resolve active page (ignore synthetic "store" hash segment)
       setActivePageId((prev) => {
         const want = initialPage || prev || "profile";
+        if (want === "store") {
+          if (plist.some((p) => p.id === "profile")) return "profile";
+          return plist[0]?.id || "profile";
+        }
         if (plist.some((p) => p.id === want)) return want;
         if (plist.some((p) => p.id === "profile")) return "profile";
         return plist[0]?.id || "profile";
@@ -268,6 +346,42 @@ export default function PublicSite({
     } catch (_) {}
   };
 
+  const buyProduct = async (product) => {
+    const pid = productIdKey(product?.id);
+    if (!pid || buyBusyId) return;
+    if (!CONNECT_ORIGIN) {
+      setBuyError("Connect backend not configured");
+      return;
+    }
+    setBuyBusyId(pid);
+    setBuyError("");
+    try {
+      const successUrl = `${window.location.origin}${window.location.pathname}?checkout=success${publicSiteHash(siteId, "store")}`;
+      const cancelUrl = `${window.location.origin}${window.location.pathname}${publicSiteHash(siteId, "store")}`;
+      const res = await fetch(`${CONNECT_ORIGIN}/api/checkout/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          siteId,
+          productId: pid,
+          successUrl,
+          cancelUrl,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`Checkout failed (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      const url = data?.url || data?.checkoutUrl || data?.sessionUrl;
+      if (!url) throw new Error("Checkout did not return a Stripe URL.");
+      window.location.href = url;
+    } catch (e) {
+      console.error(e);
+      setBuyError(e?.message || "Could not start checkout.");
+      setBuyBusyId(null);
+    }
+  };
+
   const goIce = () => {
     if (onLeave) onLeave();
     else {
@@ -276,6 +390,8 @@ export default function PublicSite({
       window.location.reload();
     }
   };
+
+  const isStore = siteFormat === "store";
 
   if (loading) {
     return (
@@ -445,6 +561,68 @@ export default function PublicSite({
           </section>
         )}
 
+        {isStore && (
+          <section className="ice-section" style={{ marginTop: "1rem" }} id="store">
+            <div className="ice-section-title">Store</div>
+            {paymentNote ? (
+              <p className="ice-alert-ok" style={{ marginBottom: "0.75rem" }}>
+                {paymentNote}
+              </p>
+            ) : null}
+            {buyError ? (
+              <p className="ice-alert-error" style={{ marginBottom: "0.75rem" }}>
+                {buyError}
+              </p>
+            ) : null}
+            {products.length === 0 ? (
+              <div className="ice-empty ice-glass-soft">No products listed yet.</div>
+            ) : (
+              <div style={styles.productGrid}>
+                {products.map((p) => {
+                  const img = unwrapOptText(p.imageURL);
+                  const pid = productIdKey(p.id);
+                  return (
+                    <article key={pid} className="ice-glass-soft" style={styles.productCard}>
+                      {img ? (
+                        <img
+                          src={img}
+                          alt=""
+                          style={styles.productImg}
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <div style={styles.productImgFallback}>Item</div>
+                      )}
+                      <div style={styles.productBody}>
+                        <h3 style={styles.productTitle}>{p.title}</h3>
+                        <div style={styles.productPrice}>
+                          {formatPrice(p.priceCents, p.currency)}
+                        </div>
+                        {p.description ? (
+                          <p style={styles.productDesc}>{p.description}</p>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="ice-btn-primary"
+                          style={{ marginTop: "0.65rem", width: "100%" }}
+                          disabled={!!buyBusyId}
+                          onClick={() => buyProduct(p)}
+                        >
+                          {buyBusyId === pid ? "Starting checkout…" : "Buy"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+            <p style={styles.storeDisclosure}>{STORE_DISCLOSURE}</p>
+          </section>
+        )}
+
         {/* Page nav */}
         {pages.length > 0 && (
           <nav className="ice-tabs" style={{ marginTop: "1rem" }} aria-label="Site pages">
@@ -606,6 +784,65 @@ const styles = {
     width: "100%",
     height: 140,
     objectFit: "cover",
+  },
+  productGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+    gap: "0.75rem",
+  },
+  productCard: {
+    padding: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+  productImg: {
+    display: "block",
+    width: "100%",
+    height: 160,
+    objectFit: "cover",
+    background: "rgba(15,23,42,0.55)",
+  },
+  productImgFallback: {
+    height: 120,
+    display: "grid",
+    placeItems: "center",
+    color: "#64748b",
+    fontSize: "0.85rem",
+    fontWeight: 600,
+    background: "rgba(15,23,42,0.55)",
+  },
+  productBody: {
+    padding: "0.85rem 0.95rem 1rem",
+  },
+  productTitle: {
+    margin: 0,
+    fontSize: "1rem",
+    fontWeight: 650,
+    color: "#f8fafc",
+  },
+  productPrice: {
+    marginTop: "0.25rem",
+    color: "#86efac",
+    fontWeight: 650,
+    fontSize: "0.95rem",
+  },
+  productDesc: {
+    margin: "0.45rem 0 0",
+    color: "#94a3b8",
+    fontSize: "0.82rem",
+    lineHeight: 1.45,
+    whiteSpace: "pre-wrap",
+  },
+  storeDisclosure: {
+    margin: "0.85rem 0 0",
+    padding: "0.65rem 0.75rem",
+    borderRadius: 10,
+    background: "rgba(251, 191, 36, 0.08)",
+    border: "1px solid rgba(251, 191, 36, 0.28)",
+    color: "#fde68a",
+    fontSize: "0.8rem",
+    lineHeight: 1.45,
   },
   postImg: {
     display: "block",

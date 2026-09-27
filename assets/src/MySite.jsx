@@ -13,6 +13,7 @@ import SiteDomainDns from "./SiteDomainDns";
 import SiteEditor from "./SiteEditor";
 import SiteAutoTopUp from "./SiteAutoTopUp";
 import SiteTransfer from "./SiteTransfer";
+import SiteStore from "./SiteStore";
 import NnsIcpFee from "./NnsIcpFee";
 import {
   isProductionNetwork,
@@ -27,6 +28,7 @@ const TABS = [
   { id: "network", label: "Network" },
   { id: "transfer", label: "Transfer" },
   { id: "content", label: "Editor" },
+  { id: "store", label: "Store" },
 ];
 
 /**
@@ -58,7 +60,13 @@ export default function MySite({
   const [reattachEligible, setReattachEligible] = useState(false);
   const [siteCyclesLow, setSiteCyclesLow] = useState(false);
   const [siteCyclesBal, setSiteCyclesBal] = useState(null);
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      if (params.get("connect") === "success") return "store";
+    } catch (_) {}
+    return "overview";
+  });
 
   const me = identity ? identity.getPrincipal() : null;
 
@@ -826,6 +834,12 @@ export default function MySite({
                   load();
                 }}
               />
+            </section>
+          )}
+
+          {tab === "store" && siteId && identity && (
+            <section className="ice-section">
+              <SiteStore identity={identity} siteId={siteId} />
             </section>
           )}
         </>
