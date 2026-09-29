@@ -177,14 +177,12 @@ export default function SiteStore({ identity, siteId }) {
         }
         const data = await res.json();
         const accountId = data?.accountId || data?.stripeAccountId || "";
-        const publishableKey = data?.publishableKey || data?.stripePublishableKey || "";
-        if (!accountId || !publishableKey) {
-          throw new Error("Connect result missing accountId or publishableKey.");
+        if (!accountId) {
+          throw new Error("Connect result missing accountId.");
         }
-        const site = await createUserSiteActor(identity, siteId);
-        const out = await site.setStripePublic(accountId, publishableKey);
+        // Backend trusted recorder already called bindStripePublic — owner cannot paste ids.
         if (cancelled) return;
-        flash(typeof out === "string" ? out : "Stripe connected.", "");
+        flash(data?.bound || "Stripe connected.", "");
         await load();
       } catch (e) {
         if (!cancelled) {
