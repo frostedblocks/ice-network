@@ -1,278 +1,186 @@
-type UserSite = 
- service {
-   /// Owner-only: discard in-progress chunked upload (rollback).
-   abortChunkedUpload: () -> (text);
-   /// Claim ownership only when unset/anonymous (not a free-for-all takeover).
-   acceptOwnership: () -> (text);
-   addTrustedRecorder: (p: principal) -> (text);
-   /// Owner-only: start a chunked upload (total ≤ 1.5 MB WebP).
-   beginChunkedUpload: (contentType: text, totalSize: nat, chunkCount:
-    nat) -> (ChunkedBeginResult);
-   /// Called by factory right after install_code.
-   /// Sets network link + seeds empty DB + default profile page (master-style).
-   bootstrap: (factory: principal, iceMain: principal, username: text, bio:
-    text, avatarURL: text) -> (text);
-   clearDomainConnection: () -> (text);
-   clearStripePublic: () -> (text);
-   /// Owner / factory: DNS verified (HTTPS ready).
-   confirmDnsConfigured: () -> (text);
-   createProduct: (title: text, description: text, priceCents: nat, currency:
-    text, imageURL: opt text) -> (ProductResult);
-   deletePage: (id: text) -> (text);
-   /// Owner-only: delete a photo by id. Frees a slot.
-   deletePhoto: (id: nat) -> (text);
-   deleteProduct: (id: nat) -> (text);
-   /// Owner-only: reassemble chunks; fail closed if any missing or size mismatch / bad type.
-   finalizeChunkedUpload: (uploadId: nat) -> (UploadPhotoResult);
-   followPeer: (peerCanister: principal) -> (text);
-   getBannerURL: () -> (text) query;
-   getCanisterId: () -> (principal) query;
-   getChunkedUploadStatus: () -> (opt ChunkedStatus) query;
-   getCyclesGauge: () -> (CyclesGauge) query;
-   getDomainStatus: () -> (DomainStatus) query;
-   getFeature: (key: text) -> (opt bool) query;
-   getFollowing: () -> (vec principal) query;
-   getFormat: () -> (SiteFormat) query;
-   getLocalFeed: (limit: nat) -> (vec Post) query;
-   getOwner: () -> (principal) query;
-   getPage: (id: text) -> (opt Page) query;
-   getPhotoMeta: (id: nat) -> (opt PhotoMeta) query;
-   getPhotoQuota: () -> (PhotoQuota) query;
-   getProduct: (id: nat) -> (opt Product) query;
-   getProfile: () -> (SiteProfile) query;
-   getReceipt: (id: nat) -> (opt Receipt) query;
-   getSetting: (key: text) -> (opt text) query;
-   getSiteStatus: () -> (SiteStatus) query;
-   getStripePublic: () -> (opt StripePublicConfig) query;
-   /// Serve photos over HTTP (public read). Method GET /photos/{id}.
-   http_request: (req: HttpRequest) -> (HttpResponse) query;
-   init: (newOwner: principal) -> ();
-   isLinkedToNetwork: () -> (bool) query;
-   isLowCycles: () -> (bool) query;
-   isReadyToDetach: () -> (bool) query;
-   listAllProducts: () -> (vec Product) query;
-   listFeatures: () -> (vec record {
-                              text;
-                              bool;
-                            }) query;
-   listPages: () -> (vec Page) query;
-   listPhotos: () -> (vec PhotoMeta) query;
-   listProducts: () -> (vec Product) query;
-   listReceipts: () -> (vec Receipt) query;
-   listSettings: () -> (vec record {
-                              text;
-                              text;
-                            }) query;
-   listTrustedRecorders: () -> (vec principal) query;
-   makeLocalPost: (content: text, imageURL: opt text) -> (opt nat);
-   /// Factory calls this on detach — site stays live, network flag off.
-   onDetach: () -> (text);
-   /// Factory calls this on relink — reconnect to network services.
-   onRelink: (factory: principal) -> (text);
-   recordCyclesSnapshot: () -> ();
-   /// Connect backend only (trustedRecorders). No buyer PII.
-   recordReceipt: (productId: nat, buyerRef: text, amountCents: nat,
-    currency: text) -> (ReceiptResult);
-   removeTrustedRecorder: (p: principal) -> (text);
-   /// Factory seeds Connect backend principal after mint.
-   seedTrustedRecorder: (p: principal) -> (text);
-   /// Set public hostname + URL. Clears DNS confirmation so owner must re-confirm after DNS setup.
-   setDomainConnection: (domain: text, url: text) -> (text);
-   setFeature: (key: text, enabled: bool) -> (text);
-   setFormat: (f: SiteFormat) -> (text);
-   setProfile: (username: text, bio: text, avatarURL: text) -> (text);
-   setSetting: (key: text, value: text) -> (text);
-   /// Owner-only write of Stripe *public* Connect account id + publishable key.
-   /// Intended path: Express OAuth completes → owner FE writes (no secret keys).
-   setStripePublic: (accountId: text, publishableKey: text) -> (text);
-   syncFromPeer: (_peer: principal, _limit: nat) -> (vec Post);
-   /// Factory-only: keep canister owner in sync with factory user mapping (upload auth).
-   syncOwner: (newOwner: principal) -> (text);
-   unfollowPeer: (peerCanister: principal) -> (text);
-   updateProduct: (id: nat, title: text, description: text, priceCents: 
-    nat, currency: text, imageURL: opt text, active: bool) -> (text);
-   /// Owner-only: upload compressed WebP only (≤1.5 MB). Chunked path for edge cases.
-   uploadPhoto: (contentType: text, data: blob) -> (UploadPhotoResult);
-   /// Owner-only: append one chunk (index 0..chunkCount-1). Missing/corrupt chunks fail finalize.
-   uploadPhotoChunk: (uploadId: nat, index: nat, data: blob) -> (text);
-   upsertPage: (id: text, title: text, body: text) -> (text);
-   /// Owner-only: set profile avatarURL to this photo’s public link (bytes stay here).
-   usePhotoAsAvatar: (id: nat) -> (text);
-   /// Owner-only: set banner URL setting to this photo’s public link.
-   usePhotoAsBanner: (id: nat) -> (text);
- };
-type UploadPhotoResult = 
- variant {
-   err: text;
-   ok: PhotoMeta;
- };
-type Time = int;
-type StripePublicConfig = 
- record {
-   accountId: text;
-   publishableKey: text;
- };
-type StreamingToken = 
- record {
-   content_encoding: text;
-   index: nat;
-   key: text;
- };
+type ChunkedBeginResult = variant {
+  ok : record { maxPhotoBytes : nat; maxChunkBytes : nat; uploadId : nat };
+  err : text;
+};
+type ChunkedStatus = record {
+  missingIndices : vec nat;
+  contentType : text;
+  receivedBytes : nat;
+  receivedChunks : nat;
+  totalSize : nat;
+  uploadId : nat;
+  chunkCount : nat;
+};
+type CyclesGauge = record {
+  warning : opt text;
+  balance : nat;
+  estimatedDaysLeft : nat;
+  lastCheck : int;
+  lowCycles : bool;
+};
+type DomainStatus = record {
+  customDomain : text;
+  publicUrl : text;
+  dnsConfigured : bool;
+  domainConnectedAt : int;
+  canisterId : principal;
+  readyForDetach : bool;
+};
+type HeaderField = record { text; text };
+type HttpRequest = record {
+  url : text;
+  method : text;
+  body : blob;
+  headers : vec HeaderField;
+  certificate_version : opt nat16;
+};
+type HttpResponse = record {
+  body : blob;
+  headers : vec HeaderField;
+  upgrade : opt bool;
+  streaming_strategy : opt StreamingStrategy;
+  status_code : nat16;
+};
+type Page = record { id : text; title : text; body : text; updatedAt : Time };
+type PhotoMeta = record {
+  id : nat;
+  url : text;
+  contentType : text;
+  path : text;
+  size : nat;
+  uploadedAt : int;
+};
+type PhotoQuota = record {
+  maxPhotos : nat;
+  used : nat;
+  remaining : nat;
+  maxBytesPerPhoto : nat;
+};
+type Post = record {
+  id : nat;
+  content : text;
+  imageURL : opt text;
+  timestamp : Time;
+};
+type Product = record {
+  id : nat;
+  title : text;
+  active : bool;
+  createdAt : int;
+  description : text;
+  updatedAt : int;
+  imageURL : opt text;
+  currency : text;
+  priceCents : nat;
+};
+type ProductResult = variant { ok : Product; err : text };
+type Receipt = record {
+  id : nat;
+  productId : nat;
+  amountCents : nat;
+  recordedAt : int;
+  currency : text;
+  recorder : principal;
+  buyerRef : text;
+};
+type ReceiptResult = variant { ok : Receipt; err : text };
+type SiteFormat = variant { social; store };
+type SiteProfile = record { bio : text; username : text; avatarURL : text };
+type SiteStatus = record {
+  owner : principal;
+  linkedToNetwork : bool;
+  factoryId : opt principal;
+  cycles : CyclesGauge;
+  pageCount : nat;
+  profile : SiteProfile;
+};
+type StreamingCallbackHttpResponse = record {
+  token : opt StreamingToken;
+  body : blob;
+};
 type StreamingStrategy = variant {
-                           Callback:
-                            record {
-                              callback:
-                               func (StreamingToken) ->
-                                (StreamingCallbackHttpResponse) query;
-                              token: StreamingToken;
-                            };};
-type StreamingCallbackHttpResponse = 
- record {
-   body: blob;
-   token: opt StreamingToken;
- };
-type SiteStatus = 
- record {
-   cycles: CyclesGauge;
-   factoryId: opt principal;
-   linkedToNetwork: bool;
-   owner: principal;
-   pageCount: nat;
-   profile: SiteProfile;
- };
-type SiteProfile = 
- record {
-   avatarURL: text;
-   bio: text;
-   username: text;
- };
-type SiteFormat = 
- variant {
-   social;
-   store;
- };
-type ReceiptResult = 
- variant {
-   err: text;
-   ok: Receipt;
- };
-type Receipt = 
- record {
-   amountCents: nat;
-   buyerRef: text;
-   currency: text;
-   id: nat;
-   productId: nat;
-   recordedAt: int;
-   recorder: principal;
- };
-type ProductResult = 
- variant {
-   err: text;
-   ok: Product;
- };
-type Product = 
- record {
-   active: bool;
-   createdAt: int;
-   currency: text;
-   description: text;
-   id: nat;
-   imageURL: opt text;
-   priceCents: nat;
-   title: text;
-   updatedAt: int;
- };
-type Post = 
- record {
-   content: text;
-   id: nat;
-   imageURL: opt text;
-   timestamp: Time;
- };
-type PhotoQuota = 
- record {
-   maxBytesPerPhoto: nat;
-   maxPhotos: nat;
-   remaining: nat;
-   used: nat;
- };
-type PhotoMeta = 
- record {
-   contentType: text;
-   id: nat;
-   path: text;
-   size: nat;
-   uploadedAt: int;
-   url: text;
- };
-type Page = 
- record {
-   body: text;
-   id: text;
-   title: text;
-   updatedAt: Time;
- };
-type HttpResponse = 
- record {
-   body: blob;
-   headers: vec HeaderField;
-   status_code: nat16;
-   streaming_strategy: opt StreamingStrategy;
-   upgrade: opt bool;
- };
-type HttpRequest = 
- record {
-   body: blob;
-   certificate_version: opt nat16;
-   headers: vec HeaderField;
-   method: text;
-   url: text;
- };
-type HeaderField = 
- record {
-   text;
-   text;
- };
-type DomainStatus = 
- record {
-   canisterId: principal;
-   customDomain: text;
-   dnsConfigured: bool;
-   domainConnectedAt: int;
-   publicUrl: text;
-   readyForDetach: bool;
- };
-type CyclesGauge = 
- record {
-   balance: nat;
-   estimatedDaysLeft: nat;
-   lastCheck: int;
-   lowCycles: bool;
-   warning: opt text;
- };
-type ChunkedStatus = 
- record {
-   chunkCount: nat;
-   contentType: text;
-   missingIndices: vec nat;
-   receivedBytes: nat;
-   receivedChunks: nat;
-   totalSize: nat;
-   uploadId: nat;
- };
-type ChunkedBeginResult = 
- variant {
-   err: text;
-   ok: record {
-         maxChunkBytes: nat;
-         maxPhotoBytes: nat;
-         uploadId: nat;
-       };
- };
-/// Personal user website canister template.
-/// Stable DB: pages, settings, features + profile + local feed + photos.
-/// Deployed by Ice Factory; owner is sole IC controller after create.
-/// Photos: max 10, WebP only, ≤1.5 MB each after client compression; owner-only write; HTTP serve.
-/// ICE main stores image links only, never bytes.
-service : (initOwner: principal) -> UserSite
+  Callback : record {
+    token : StreamingToken;
+    callback : func (StreamingToken) -> (StreamingCallbackHttpResponse) query;
+  };
+};
+type StreamingToken = record {
+  key : text;
+  index : nat;
+  content_encoding : text;
+};
+type StripePublicConfig = record { accountId : text; publishableKey : text };
+type Time = int;
+type UploadPhotoResult = variant { ok : PhotoMeta; err : text };
+type UserSite = service {
+  abortChunkedUpload : () -> (text);
+  acceptOwnership : () -> (text);
+  addTrustedRecorder : (principal) -> (text);
+  beginChunkedUpload : (text, nat, nat) -> (ChunkedBeginResult);
+  bindStripePublic : (text, text) -> (text);
+  bootstrap : (principal, principal, text, text, text) -> (text);
+  clearDomainConnection : () -> (text);
+  clearStripePublic : () -> (text);
+  confirmDnsConfigured : () -> (text);
+  createProduct : (text, text, nat, text, opt text) -> (ProductResult);
+  deletePage : (text) -> (text);
+  deletePhoto : (nat) -> (text);
+  deleteProduct : (nat) -> (text);
+  finalizeChunkedUpload : (nat) -> (UploadPhotoResult);
+  followPeer : (principal) -> (text);
+  getBannerURL : () -> (text) query;
+  getCanisterId : () -> (principal) query;
+  getChunkedUploadStatus : () -> (opt ChunkedStatus) query;
+  getCyclesGauge : () -> (CyclesGauge) query;
+  getDomainStatus : () -> (DomainStatus) query;
+  getFeature : (text) -> (opt bool) query;
+  getFollowing : () -> (vec principal) query;
+  getFormat : () -> (SiteFormat) query;
+  getLocalFeed : (nat) -> (vec Post) query;
+  getOwner : () -> (principal) query;
+  getPage : (text) -> (opt Page) query;
+  getPhotoMeta : (nat) -> (opt PhotoMeta) query;
+  getPhotoQuota : () -> (PhotoQuota) query;
+  getProduct : (nat) -> (opt Product) query;
+  getProfile : () -> (SiteProfile) query;
+  getReceipt : (nat) -> (opt Receipt) query;
+  getSetting : (text) -> (opt text) query;
+  getSiteStatus : () -> (SiteStatus) query;
+  getStripePublic : () -> (opt StripePublicConfig) query;
+  http_request : (HttpRequest) -> (HttpResponse) query;
+  init : (principal) -> ();
+  isLinkedToNetwork : () -> (bool) query;
+  isLowCycles : () -> (bool) query;
+  isReadyToDetach : () -> (bool) query;
+  listAllProducts : () -> (vec Product) query;
+  listFeatures : () -> (vec record { text; bool }) query;
+  listPages : () -> (vec Page) query;
+  listPhotos : () -> (vec PhotoMeta) query;
+  listProducts : () -> (vec Product) query;
+  listReceipts : () -> (vec Receipt) query;
+  listSettings : () -> (vec record { text; text }) query;
+  listTrustedRecorders : () -> (vec principal) query;
+  makeLocalPost : (text, opt text) -> (opt nat);
+  onDetach : () -> (text);
+  onRelink : (principal) -> (text);
+  recordCyclesSnapshot : () -> ();
+  recordReceipt : (nat, text, nat, text) -> (ReceiptResult);
+  removeTrustedRecorder : (principal) -> (text);
+  seedTrustedRecorder : (principal) -> (text);
+  setDomainConnection : (text, text) -> (text);
+  setFeature : (text, bool) -> (text);
+  setFormat : (SiteFormat) -> (text);
+  setProfile : (text, text, text) -> (text);
+  setSetting : (text, text) -> (text);
+  setStripePublic : (text, text) -> (text);
+  syncFromPeer : (principal, nat) -> (vec Post);
+  syncOwner : (principal) -> (text);
+  unfollowPeer : (principal) -> (text);
+  updateProduct : (nat, text, text, nat, text, opt text, bool) -> (text);
+  uploadPhoto : (text, blob) -> (UploadPhotoResult);
+  uploadPhotoChunk : (nat, nat, blob) -> (text);
+  upsertPage : (text, text, text) -> (text);
+  usePhotoAsAvatar : (nat) -> (text);
+  usePhotoAsBanner : (nat) -> (text);
+};
+service : UserSite

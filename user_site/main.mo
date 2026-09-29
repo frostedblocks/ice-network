@@ -1468,9 +1468,8 @@ persistent actor class UserSite(initOwner : Principal) = this {
     Buffer.toArray(buf)
   };
 
-  public query func listAllProducts() : async [Product] {
-    // Owner catalog including inactive — gated at FE; query is public but inactive are soft-deleted.
-    // Prefer owner-only list via listProductsActive + listProductsOwner.
+  public shared query(msg) func listAllProducts() : async [Product] {
+    if (not isOwner(msg.caller)) { return [] };
     let buf = Buffer.Buffer<Product>(products.size());
     for ((_, p) in products.entries()) { buf.add(p) };
     Buffer.toArray(buf)
@@ -1480,19 +1479,29 @@ persistent actor class UserSite(initOwner : Principal) = this {
     products.get(id)
   };
 
-  /// Owner-only write of Stripe *public* Connect account id + publishable key.
-  /// Intended path: Express OAuth completes → owner FE writes (no secret keys).
-  public shared(msg) func setStripePublic(accountId : Text, publishableKey : Text) : async Text {
+  /// Owner cannot paste arbitrary Connect account ids — use Express OAuth.
+  /// Connect backend (trustedRecorder) calls bindStripePublic after OAuth proof.
+  public shared(msg) func setStripePublic(_accountId : Text, _publishableKey : Text) : async Text {
     if (not isOwner(msg.caller)) { return "Not authorized" };
+    "Use Connect with Stripe (OAuth). Direct setStripePublic is disabled for security."
+  };
+
+  /// Trusted Connect backend binds public Stripe ids after Express OAuth completes.
+  public shared(msg) func bindStripePublic(accountId : Text, publishableKey : Text) : async Text {
+    if (not isTrustedRecorder(msg.caller)) {
+      return "Not authorized — Connect backend (trusted recorder) only"
+    };
     if (Text.size(accountId) < 4) { return "Invalid account id" };
     if (Text.size(publishableKey) < 8) { return "Invalid publishable key" };
-    // Reject secret-looking keys
     if (Text.startsWith(publishableKey, #text "sk_")) {
       return "Secret keys are not allowed on-canister"
     };
+    if (Text.startsWith(accountId, #text "sk_")) {
+      return "Invalid account id"
+    };
     stripeAccountId := accountId;
     stripePublishableKey := publishableKey;
-    "Stripe public config saved"
+    "Stripe public config bound"
   };
 
   public shared(msg) func clearStripePublic() : async Text {
@@ -1517,8 +1526,9 @@ persistent actor class UserSite(initOwner : Principal) = this {
   };
 
   public shared(msg) func addTrustedRecorder(p : Principal) : async Text {
-    if (not isOwner(msg.caller) and not isFactoryCaller(msg.caller)) {
-      return "Not authorized"
+    // Factory-only — site owners must not self-add as receipt forgers.
+    if (not isFactoryCaller(msg.caller)) {
+      return "Not authorized — factory only"
     };
     if (Principal.isAnonymous(p)) { return "Invalid principal" };
     trustedRecorders.put(p, true);
@@ -1526,8 +1536,8 @@ persistent actor class UserSite(initOwner : Principal) = this {
   };
 
   public shared(msg) func removeTrustedRecorder(p : Principal) : async Text {
-    if (not isOwner(msg.caller) and not isFactoryCaller(msg.caller)) {
-      return "Not authorized"
+    if (not isFactoryCaller(msg.caller)) {
+      return "Not authorized — factory only"
     };
     trustedRecorders.delete(p);
     "Removed"
@@ -1545,6 +1555,8 @@ persistent actor class UserSite(initOwner : Principal) = this {
   };
 
   /// Connect backend only (trustedRecorders). No buyer PII.
+  /// amountCents = amount actually paid (Stripe session.amount_total), not live product price
+  /// (seller may have changed price after checkout was created).
   public shared(msg) func recordReceipt(
     productId : Nat,
     buyerRef : Text,
@@ -1556,13 +1568,15 @@ persistent actor class UserSite(initOwner : Principal) = this {
     };
     if (Text.size(buyerRef) == 0) { return #err("buyerRef required") };
     if (amountCents == 0) { return #err("amount required") };
+    // Idempotent: same Stripe session id must not create duplicate receipts
+    for ((_, existing) in receipts.entries()) {
+      if (Text.equal(existing.buyerRef, buyerRef)) {
+        return #ok(existing)
+      };
+    };
     switch (products.get(productId)) {
       case null { return #err("Product not found") };
       case (?prod) {
-        // Defense in depth: amount should match product (backend also reads canister)
-        if (amountCents != prod.priceCents) {
-          return #err("Amount does not match product price")
-        };
         let cur = if (Text.size(currency) == 0) { prod.currency } else { Text.toLowercase(currency) };
         let id = nextReceiptId;
         nextReceiptId += 1;
@@ -1570,7 +1584,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
           id;
           productId;
           buyerRef;
-          amountCents;
+          amountCents; // paid amount from Stripe
           currency = cur;
           recordedAt = Time.now();
           recorder = msg.caller;

@@ -142,6 +142,7 @@ export const idlFactory = ({ IDL }) => {
         [ChunkedBeginResult],
         [],
       ),
+    'bindStripePublic' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
     'bootstrap' : IDL.Func(
         [IDL.Principal, IDL.Principal, IDL.Text, IDL.Text, IDL.Text],
         [IDL.Text],

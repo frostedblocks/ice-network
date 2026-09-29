@@ -53,6 +53,7 @@ const userSiteIdl = ({ IDL: e }: { IDL: typeof IDL }) => {
       [ReceiptResult],
       [],
     ),
+    bindStripePublic: e.Func([e.Text, e.Text], [e.Text], []),
   });
 };
 
@@ -93,6 +94,10 @@ export type UserSiteActor = ActorSubclass<{
     amountCents: bigint,
     currency: string,
   ) => Promise<{ ok: unknown } | { err: string }>;
+  bindStripePublic: (
+    accountId: string,
+    publishableKey: string,
+  ) => Promise<string>;
 }>;
 
 function assertCanisterId(siteId: string): Principal {

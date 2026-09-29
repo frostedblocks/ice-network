@@ -66,11 +66,27 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Bind on-canister via trusted recorder — owner cannot paste arbitrary account ids.
+    const { getRecorderSiteActor } = await import("@/lib/ic");
+    const actor = await getRecorderSiteActor(payload.siteId);
+    const bindOut = await actor.bindStripePublic(
+      payload.accountId,
+      stripePublishableKey,
+    );
+    if (typeof bindOut === "string" && bindOut.toLowerCase().includes("not authorized")) {
+      return jsonCors(req, { error: bindOut }, { status: 403 });
+    }
+    if (typeof bindOut === "string" && !bindOut.toLowerCase().includes("bound") && !bindOut.toLowerCase().includes("saved")) {
+      // Still return config to FE for display, but surface bind message
+      console.warn("bindStripePublic:", bindOut);
+    }
+
     const res = jsonCors(req, {
       accountId: payload.accountId,
       publishableKey: stripePublishableKey,
       ownerPrincipal: payload.ownerPrincipal,
       siteId: payload.siteId,
+      bound: typeof bindOut === "string" ? bindOut : "ok",
     });
     // Clear cookie after one successful read
     res.cookies.set(COMPLETION_COOKIE, "", {
