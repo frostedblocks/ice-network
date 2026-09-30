@@ -40,6 +40,9 @@ type Factory = service {
   adminRejectRecoveryRequest : (principal, principal) -> (OpResult);
   adminResumePendingMint : (principal) -> (CreateUserSiteResult);
   adminSetControllers : (principal, vec principal) -> (text);
+  adminSetConnectBackend : (principal) -> (text);
+  adminClearConnectBackend : () -> (text);
+  adminSeedTrustedRecorderOnSite : (principal) -> (text);
   adminSetDomainConnectFee : (nat) -> (text);
   adminSetFees : (nat, nat, nat) -> (text);
   adminSetPrincipalMigration : (bool) -> (text);
@@ -71,6 +74,7 @@ type Factory = service {
   fetchNnsDepositBalance : (principal) -> (nat);
   finalizeUserSiteWasm : () -> (text);
   getAutoTopUpStatus : (principal) -> (opt AutoTopUpPref) query;
+  getConnectBackend : () -> (opt principal) query;
   getControllerPolicy : () -> (
       record {
         note : text;

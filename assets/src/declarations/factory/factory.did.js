@@ -135,6 +135,9 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text],
         [],
       ),
+    'adminSetConnectBackend' : IDL.Func([IDL.Principal], [IDL.Text], []),
+    'adminClearConnectBackend' : IDL.Func([], [IDL.Text], []),
+    'adminSeedTrustedRecorderOnSite' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'adminSetDomainConnectFee' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'adminSetFees' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [IDL.Text], []),
     'adminSetPrincipalMigration' : IDL.Func([IDL.Bool], [IDL.Text], []),
@@ -174,6 +177,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(AutoTopUpPref)],
         ['query'],
       ),
+    'getConnectBackend' : IDL.Func([], [IDL.Opt(IDL.Principal)], ['query']),
     'getControllerPolicy' : IDL.Func(
         [],
         [

@@ -29,3 +29,7 @@ canister_ids.json
 ```
 
 Each canister folder includes a `CANISTER.md` with its mainnet ID.
+
+## Stripe Connect ops
+
+Factory `adminSetConnectBackend` / seed existing sites + assets `VITE_CONNECT_API_ORIGIN`: see **[docs/CONNECT_OPS.md](docs/CONNECT_OPS.md)**.

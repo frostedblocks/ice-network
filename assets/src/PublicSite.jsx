@@ -5,6 +5,8 @@ import {
 } from "./actors";
 
 const CONNECT_ORIGIN = String(import.meta.env.VITE_CONNECT_API_ORIGIN || "").replace(/\/$/, "");
+const CONNECT_SETUP_MSG =
+  "Connect backend not configured — rebuild assets with VITE_CONNECT_API_ORIGIN set to your Connect backend origin (see docs/CONNECT_OPS.md).";
 const STORE_DISCLOSURE =
   "You pay the seller via Stripe. Frostblocks does not hold this payment.";
 
@@ -350,7 +352,7 @@ export default function PublicSite({
     const pid = productIdKey(product?.id);
     if (!pid || buyBusyId) return;
     if (!CONNECT_ORIGIN) {
-      setBuyError("Connect backend not configured");
+      setBuyError(CONNECT_SETUP_MSG);
       return;
     }
     setBuyBusyId(pid);
