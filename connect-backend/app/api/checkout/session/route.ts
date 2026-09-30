@@ -1,36 +1,79 @@
 import { NextRequest } from "next/server";
 import type Stripe from "stripe";
 import { resolveAllowlistedUrl } from "@/lib/allowlist";
-import { corsPreflight, jsonCors } from "@/lib/cors";
+import {
+  corsPreflight,
+  jsonCors,
+  siteAllowedOrigin,
+  staticAllowedOrigin,
+} from "@/lib/cors";
 import { getEnv } from "@/lib/env";
-import { getAnonymousSiteActor, optFirst } from "@/lib/ic";
+import { getAnonymousSiteActor, optFirst, type DomainStatus } from "@/lib/ic";
 import { getStripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+async function loadDomain(siteId: string): Promise<DomainStatus | null> {
+  try {
+    const actor = await getAnonymousSiteActor(siteId);
+    return await actor.getDomainStatus();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * OPTIONS: prefer ?siteId= so custom-domain Origin can be allowlisted via
+ * canister getDomainStatus (browsers send preflight without a JSON body).
+ */
 export async function OPTIONS(req: NextRequest) {
-  return corsPreflight(req);
+  const origin = req.headers.get("origin");
+  const siteId = req.nextUrl.searchParams.get("siteId")?.trim() || "";
+  let allowOrigin = staticAllowedOrigin(origin);
+  if (!allowOrigin && siteId) {
+    const domain = await loadDomain(siteId);
+    allowOrigin = siteAllowedOrigin(origin, siteId, domain);
+  }
+  return corsPreflight(req, { allowOrigin });
 }
 
 export async function POST(req: NextRequest) {
+  const requestOrigin = req.headers.get("origin");
+  let allowOrigin = staticAllowedOrigin(requestOrigin);
+
   try {
     const body = (await req.json()) as {
       siteId?: string;
       productId?: number | string;
       successPath?: string;
       cancelPath?: string;
+      successUrl?: string;
+      cancelUrl?: string;
     };
 
-    const siteId = body.siteId?.trim();
+    const siteId =
+      body.siteId?.trim() ||
+      req.nextUrl.searchParams.get("siteId")?.trim() ||
+      "";
     if (!siteId) {
-      return jsonCors(req, { error: "siteId is required" }, { status: 400 });
+      return jsonCors(
+        req,
+        { error: "siteId is required" },
+        { status: 400, allowOrigin },
+      );
     }
     if (body.productId === undefined || body.productId === null) {
-      return jsonCors(req, { error: "productId is required" }, { status: 400 });
+      return jsonCors(
+        req,
+        { error: "productId is required" },
+        { status: 400, allowOrigin },
+      );
     }
 
-    // Reject client-supplied amounts / account ids — only siteId + productId (+ paths)
+    // Reject client-supplied amounts / account ids / absolute redirect URLs.
+    // FE must send relative successPath/cancelPath; backend builds absolute URLs
+    // from the allowlisted Origin (no open redirects).
     const forbidden = [
       "amount",
       "amountCents",
@@ -40,13 +83,20 @@ export async function POST(req: NextRequest) {
       "stripeAccount",
       "currency",
       "application_fee_amount",
+      "successUrl",
+      "cancelUrl",
     ];
     for (const k of forbidden) {
       if (k in body) {
         return jsonCors(
           req,
-          { error: `Do not send ${k}; amounts and Stripe account come from canister` },
-          { status: 400 },
+          {
+            error:
+              k === "successUrl" || k === "cancelUrl"
+                ? `Do not send ${k}; use relative successPath/cancelPath`
+                : `Do not send ${k}; amounts and Stripe account come from canister`,
+          },
+          { status: 400, allowOrigin },
         );
       }
     }
@@ -55,7 +105,11 @@ export async function POST(req: NextRequest) {
     try {
       productId = BigInt(body.productId);
     } catch {
-      return jsonCors(req, { error: "Invalid productId" }, { status: 400 });
+      return jsonCors(
+        req,
+        { error: "Invalid productId" },
+        { status: 400, allowOrigin },
+      );
     }
 
     const actor = await getAnonymousSiteActor(siteId);
@@ -65,12 +119,22 @@ export async function POST(req: NextRequest) {
       actor.getDomainStatus(),
     ]);
 
+    allowOrigin = siteAllowedOrigin(requestOrigin, siteId, domain);
+
     const product = optFirst(productOpt);
     if (!product) {
-      return jsonCors(req, { error: "Product not found" }, { status: 404 });
+      return jsonCors(
+        req,
+        { error: "Product not found" },
+        { status: 404, allowOrigin },
+      );
     }
     if (!product.active) {
-      return jsonCors(req, { error: "Product is not active" }, { status: 400 });
+      return jsonCors(
+        req,
+        { error: "Product is not active" },
+        { status: 400, allowOrigin },
+      );
     }
 
     const stripePublic = optFirst(stripeOpt);
@@ -78,7 +142,7 @@ export async function POST(req: NextRequest) {
       return jsonCors(
         req,
         { error: "Site has no Stripe Connect account configured" },
-        { status: 400 },
+        { status: 400, allowOrigin },
       );
     }
 
@@ -87,17 +151,23 @@ export async function POST(req: NextRequest) {
       domain,
       body.successPath,
       "success",
+      requestOrigin,
     );
     const cancelUrl = resolveAllowlistedUrl(
       siteId,
       domain,
       body.cancelPath,
       "cancel",
+      requestOrigin,
     );
 
     const unitAmount = Number(product.priceCents);
     if (!Number.isSafeInteger(unitAmount) || unitAmount <= 0) {
-      return jsonCors(req, { error: "Invalid on-canister price" }, { status: 400 });
+      return jsonCors(
+        req,
+        { error: "Invalid on-canister price" },
+        { status: 400, allowOrigin },
+      );
     }
 
     const currency = (product.currency || "usd").toLowerCase();
@@ -155,7 +225,7 @@ export async function POST(req: NextRequest) {
     return jsonCors(req, {
       id: session.id,
       url: session.url,
-    });
+    }, { allowOrigin });
   } catch (e) {
     const message = e instanceof Error ? e.message : "checkout/session failed";
     const status =
@@ -164,6 +234,6 @@ export async function POST(req: NextRequest) {
       message.includes("Invalid")
         ? 400
         : 500;
-    return jsonCors(req, { error: message }, { status });
+    return jsonCors(req, { error: message }, { status, allowOrigin });
   }
 }

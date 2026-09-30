@@ -84,7 +84,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminBackfillRegistry' : IDL.Func([], [IDL.Text], []),
-    'adminCancelSiteTransfer' : IDL.Func([IDL.Principal], [OpResult], []),
+    'adminClearConnectBackend' : IDL.Func([], [IDL.Text], []),
     'adminConvertIcpToCycles' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'adminCreateUserSite' : IDL.Func(
         [IDL.Principal],
@@ -92,11 +92,6 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminForceResetSite' : IDL.Func([IDL.Principal], [OpResult], []),
-    'adminForceSiteTransfer' : IDL.Func(
-        [IDL.Principal, IDL.Principal],
-        [OpResult],
-        [],
-      ),
     'adminGenerateSiteRecoveryCode' : IDL.Func([IDL.Principal], [OpResult], []),
     'adminLinkUserCanister' : IDL.Func(
         [IDL.Principal, IDL.Principal],
@@ -109,11 +104,6 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminPushLatestWasmToAll' : IDL.Func([IDL.Nat], [WasmPushResult], []),
-    'adminReassignSite' : IDL.Func(
-        [IDL.Principal, IDL.Principal],
-        [IDL.Text],
-        [],
-      ),
     'adminReconcileRegistry' : IDL.Func([], [IDL.Text], []),
     'adminRecreateUserSite' : IDL.Func(
         [IDL.Principal],
@@ -130,6 +120,12 @@ export const idlFactory = ({ IDL }) => {
         [CreateUserSiteResult],
         [],
       ),
+    'adminSeedTrustedRecorderOnSite' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Text],
+        [],
+      ),
+    'adminSetConnectBackend' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'adminSetControllers' : IDL.Func(
         [IDL.Principal, IDL.Vec(IDL.Principal)],
         [IDL.Text],
@@ -137,6 +133,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'adminSetDomainConnectFee' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'adminSetFees' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [IDL.Text], []),
+    'adminSetMintFee' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Text], []),
     'adminSetPrincipalMigration' : IDL.Func([IDL.Bool], [IDL.Text], []),
     'adminSetRegistry' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'adminSetTransferFee' : IDL.Func([IDL.Nat], [IDL.Text], []),
@@ -174,6 +171,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(AutoTopUpPref)],
         ['query'],
       ),
+    'getConnectBackend' : IDL.Func([], [IDL.Opt(IDL.Principal)], ['query']),
     'getControllerPolicy' : IDL.Func(
         [],
         [
@@ -193,10 +191,13 @@ export const idlFactory = ({ IDL }) => {
         [
           IDL.Record({
             'detachFeeE8s' : IDL.Nat,
+            'mintCyclesShareE8s' : IDL.Nat,
             'totalIcpReceivedE8s' : IDL.Nat,
             'relinkFeeE8s' : IDL.Nat,
+            'mintFeeE8s' : IDL.Nat,
             'domainConnectFeeE8s' : IDL.Nat,
             'topupIcpE8sPerT' : IDL.Nat,
+            'mintNetworkOpsE8s' : IDL.Nat,
             'transferFeeE8s' : IDL.Nat,
           }),
         ],

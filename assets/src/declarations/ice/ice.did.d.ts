@@ -1,6 +1,6 @@
-import type { Principal } from '@dfinity/principal';
-import type { ActorMethod } from '@dfinity/agent';
-import type { IDL } from '@dfinity/candid';
+import type { Principal } from '@icp-sdk/core/principal';
+import type { ActorMethod } from '@icp-sdk/core/agent';
+import type { IDL } from '@icp-sdk/core/candid';
 
 export interface AdminUserInfo {
   'bio' : string,
@@ -12,10 +12,6 @@ export interface AdminUserInfo {
   'postsToday' : bigint,
   'isRegistered' : boolean,
   'postsThisMonth' : bigint,
-}
-export interface Associates {
-  'followers' : Array<Principal>,
-  'following' : Array<Principal>,
 }
 export interface Comment {
   'id' : bigint,
@@ -61,12 +57,6 @@ export interface Notification {
   'message' : string,
   'refId' : bigint,
 }
-export interface PendingPayment {
-  'user' : Principal,
-  'tokens' : bigint,
-  'priceE8s' : bigint,
-  'requestedAt' : Time,
-}
 export interface Post {
   'id' : bigint,
   'content' : string,
@@ -91,11 +81,6 @@ export interface SiteStats {
   'totalReportFlags' : bigint,
   'totalComments' : bigint,
 }
-export interface SubOffer {
-  'tierLabel' : string,
-  'tokens' : bigint,
-  'priceE8s' : bigint,
-}
 export type Time = bigint;
 export interface TreasuryStats {
   'pendingCount' : bigint,
@@ -115,14 +100,6 @@ export interface _SERVICE {
    */
   'adminClearIcpE8s' : ActorMethod<[Principal], string>,
   /**
-   * / Master: set user balance to zero.
-   */
-  'adminClearTokens' : ActorMethod<[Principal], string>,
-  /**
-   * / Master confirms a *manual* request after verifying ICP off-chain. Prefer buyTokenPack (auto).
-   */
-  'adminConfirmPayment' : ActorMethod<[bigint], string>,
-  /**
    * / Master/ops: convert ICE treasury ICP into cycles on the master factory via CMC.
    * / amountE8s = 0 converts all liquid ICP (minus one ledger fee).
    */
@@ -141,7 +118,6 @@ export interface _SERVICE {
    * / Cannot delete the current owner principal's profile.
    */
   'adminDeleteProfile' : ActorMethod<[Principal], string>,
-  'adminGrantTokens' : ActorMethod<[Principal, bigint], boolean>,
   'adminHidePost' : ActorMethod<[bigint], boolean>,
   /**
    * / Master: list all profiles (principal + username + bio). For cleanup / audits.
@@ -159,18 +135,13 @@ export interface _SERVICE {
   /**
    * / Master: II principal mismatch recovery — copy membership to a new II without Join fee.
    * / Marks `to` registered; optionally reassigns username from `from` if `to` has none.
-   * / Does not move posts/tokens (use adminGrantTokens / profile save separately).
+   * / Does not move posts (profile save is separate).
    */
   'adminMigrateMembership' : ActorMethod<[Principal, Principal], string>,
   /**
    * / Master: re-run migration — mark all known IIs registered (no fees).
    */
   'adminRegisterAllExistingUsers' : ActorMethod<[], string>,
-  'adminRejectPayment' : ActorMethod<[bigint], string>,
-  /**
-   * / Master: remove tokens from a user (capped at their current balance).
-   */
-  'adminRemoveTokens' : ActorMethod<[Principal, bigint], string>,
   /**
    * / Master: search users by username substring (case-insensitive). Also accepts a full principal.
    */
@@ -187,23 +158,11 @@ export interface _SERVICE {
     string
   >,
   'adminSetPaymentsEnabled' : ActorMethod<[boolean], string>,
-  'adminSetPrices' : ActorMethod<[bigint, bigint, bigint], string>,
   /**
-   * / Master: turn registration fee on/off and set fee (e8s) + bonus tokens.
+   * / Join fee is permanently off (fee-at-mint). Cannot re-enable.
    */
   'adminSetRegistrationFee' : ActorMethod<[boolean, bigint, bigint], string>,
-  /**
-   * / Master: minimum cumulative tip to master (e8s) required before tipping others.
-   */
-  'adminSetTipUnlockMinE8s' : ActorMethod<[bigint], string>,
   'adminSetTippingEnabled' : ActorMethod<[boolean], string>,
-  /**
-   * / Deprecated — token packs removed. Use adminSetActionFees + depositIcp.
-   */
-  'adminSetTokenPacks' : ActorMethod<
-    [bigint, bigint, bigint, bigint, bigint, bigint],
-    string
-  >,
   'adminUnbanUser' : ActorMethod<[Principal], string>,
   'adminUnhidePost' : ActorMethod<[bigint], boolean>,
   /**
@@ -217,23 +176,20 @@ export interface _SERVICE {
    */
   'block' : ActorMethod<[Principal], string>,
   /**
-   * / Token packs removed — use depositIcp instead.
-   */
-  'buyTokenPack' : ActorMethod<[bigint], string>,
-  /**
    * / True only for the current Lite admin owner II (does not reveal the principal).
    */
   'canManageLiteAdmin' : ActorMethod<[], boolean>,
-  /**
-   * / Charge prepaid ICP for a DM when message fees are on. Master is free.
-   */
-  'chargeForMessage' : ActorMethod<[], boolean>,
   /**
    * / One-time: ICE master (Master Profile) assigns Lite admin writes to msg.caller.
    * / After this, only that II can call setSignupsOpen / ban / hide / etc.
    */
   'claimLiteAdmin' : ActorMethod<[], string>,
   'claimMasterProfile' : ActorMethod<[], string>,
+  /**
+   * / After factory claimSiteByCanisterId: mark this II registered on ICE without Join fee.
+   * / Requires owning at least one factory-registered personal site.
+   */
+  'completePrincipalMigration' : ActorMethod<[], string>,
   /**
    * / Anyone (including guests before sign-in) can message the master profile.
    * / Anonymous callers: 60s global cooldown. Max 500 chars. Stored for master inbox.
@@ -265,7 +221,7 @@ export interface _SERVICE {
   'ensurePaymentsLive' : ActorMethod<[], boolean>,
   'ensureRegistrationFee2Icp' : ActorMethod<[], string>,
   /**
-   * / Apply current first-login fee migration (2 ICP). Master can still change via adminSetRegistrationFee.
+   * / Status only — Join fee permanently off (fee-at-mint). Cannot re-enable via adminSetRegistrationFee.
    */
   'ensureRegistrationFee5Icp' : ActorMethod<[], string>,
   'fetchNnsDepositBalance' : ActorMethod<[Principal], bigint>,
@@ -276,14 +232,6 @@ export interface _SERVICE {
     [Principal, Array<Principal>],
     Array<Principal>
   >,
-  /**
-   * / Follow target. Fails if anonymous, self, banned, or either side blocked.
-   */
-  'follow' : ActorMethod<[Principal], string>,
-  /**
-   * / following + followers for Associates UI
-   */
-  'getAssociates' : ActorMethod<[Principal], Associates>,
   'getBannedUsers' : ActorMethod<[], Array<Principal>>,
   /**
    * / Principals that `user` has blocked
@@ -336,16 +284,8 @@ export interface _SERVICE {
    * / Categories the user follows (empty = none selected yet)
    */
   'getFollowedCategories' : ActorMethod<[Principal], Array<string>>,
-  'getFollowers' : ActorMethod<[Principal], Array<Principal>>,
-  'getFollowing' : ActorMethod<[Principal], Array<Principal>>,
-  /**
-   * / Followers' feed: posts from people the caller follows (social Follow).
-   * / This is the only feed that shows detached authors (to their followers).
-   */
-  'getFollowingPeoplePosts' : ActorMethod<[bigint], Array<Post>>,
   /**
    * / Main ICE feed (logged-in or same as public): never includes detached (network-private) authors.
-   * / Detached users' posts are only on their profile and on followers' people-feed.
    */
   'getHomeFeed' : ActorMethod<[bigint], Array<Post>>,
   /**
@@ -359,10 +299,6 @@ export interface _SERVICE {
   'getLiteAdmin' : ActorMethod<[], LiteAdmin>,
   'getMasterContacts' : ActorMethod<[bigint], Array<MasterContact>>,
   'getMyIcpE8s' : ActorMethod<[], bigint>,
-  'getMyTipUnlockStatus' : ActorMethod<
-    [],
-    { 'unlocked' : boolean, 'paidToMasterE8s' : bigint, 'requiredE8s' : bigint }
-  >,
   /**
    * / Legacy name — returns prepaid ICP e8s (not soft tokens).
    */
@@ -379,7 +315,6 @@ export interface _SERVICE {
    */
   'getNotifications' : ActorMethod<[bigint], Array<Notification>>,
   'getOwner' : ActorMethod<[], Principal>,
-  'getPendingPayments' : ActorMethod<[], Array<[bigint, PendingPayment]>>,
   'getPost' : ActorMethod<[bigint], [] | [Post]>,
   /**
    * / Category for a single post (defaults to General for older posts)
@@ -390,7 +325,7 @@ export interface _SERVICE {
    */
   'getPostsByAuthor' : ActorMethod<[Principal, bigint], Array<Post>>,
   /**
-   * / Author posts visible to caller: self, followers of detached authors, or anyone if not detached.
+   * / Author posts visible to caller: self or master if detached, or anyone if not detached.
    */
   'getPostsByAuthorForViewer' : ActorMethod<[Principal, bigint], Array<Post>>,
   /**
@@ -405,12 +340,6 @@ export interface _SERVICE {
   'getRegistrationFeeE8s' : ActorMethod<[], bigint>,
   'getReportedPosts' : ActorMethod<[], Array<Post>>,
   'getSiteStats' : ActorMethod<[], SiteStats>,
-  /**
-   * / Token packs removed — always empty.
-   */
-  'getSubscriptionOffers' : ActorMethod<[], Array<SubOffer>>,
-  'getTiers' : ActorMethod<[], Array<bigint>>,
-  'getTipUnlockMinE8s' : ActorMethod<[], bigint>,
   /**
    * / Legacy — returns message fee in e8s when enabled, else 0.
    */
@@ -432,7 +361,6 @@ export interface _SERVICE {
   >,
   'hasLiked' : ActorMethod<[bigint, Principal], boolean>,
   'hasLoved' : ActorMethod<[bigint, Principal], boolean>,
-  'hasUnlockedTipping' : ActorMethod<[Principal], boolean>,
   'hideLitePost' : ActorMethod<[string], LiteAdminWrite>,
   'isBanned' : ActorMethod<[Principal], boolean>,
   /**
@@ -449,6 +377,10 @@ export interface _SERVICE {
    */
   'isLiteAdminClaimed' : ActorMethod<[], boolean>,
   'isMessagingFree' : ActorMethod<[], boolean>,
+  /**
+   * / Factory mint: waive 10 ICP site fee for master only.
+   */
+  'isMintFeeWaived' : ActorMethod<[Principal], boolean>,
   'isOwner' : ActorMethod<[Principal], boolean>,
   'isOwnerVisible' : ActorMethod<[Principal], boolean>,
   'isPaymentsEnabled' : ActorMethod<[], boolean>,
@@ -468,20 +400,10 @@ export interface _SERVICE {
   'markMasterContactRead' : ActorMethod<[bigint], string>,
   'markNotificationRead' : ActorMethod<[bigint], string>,
   /**
-   * / Refund a message ICP charge if messaging canister rejected the send.
-   */
-  'refundMessageCharge' : ActorMethod<[], boolean>,
-  /**
-   * / Register with unique username. If registration fee is ON, charges via II icrc2_approve + transfer_from.
-   * / Master never pays. Frontend: fund II from NNS if needed → approve with II → register.
-   * / Posts / messages / loves use ICE tokens only — not ICP.
+   * / Register with unique username. Master never pays.
    */
   'register' : ActorMethod<[string, string, string], string>,
   'reportPost' : ActorMethod<[bigint], string>,
-  /**
-   * / Legacy: record a manual purchase request (no ICP pulled). Prefer buyTokenPack.
-   */
-  'requestPaidSubscription' : ActorMethod<[bigint], string>,
   'searchPosts' : ActorMethod<[string], Array<Post>>,
   'setCloak' : ActorMethod<[boolean], boolean>,
   'setFeedBridgeOpen' : ActorMethod<[boolean], LiteAdminWrite>,
@@ -498,14 +420,8 @@ export interface _SERVICE {
    * / Factory (or master): mark user posts as network-private after site detach; clear on reattach.
    */
   'setUserNetworkPrivate' : ActorMethod<[Principal, boolean], string>,
-  'spendTokens' : ActorMethod<[bigint], boolean>,
   /**
-   * / Deprecated — packs removed.
-   */
-  'subscribe' : ActorMethod<[bigint], string>,
-  /**
-   * / Tip ICP: sender II must approve this canister; ICP is pulled then paid to recipient's II principal on the ledger.
-   * / Tipping anyone except master requires prior cumulative tips to master >= tipUnlockMinE8s.
+   * / Tip ICP when tipping is enabled. No unlock gate.
    */
   'tipIcp' : ActorMethod<[Principal, bigint], string>,
   /**
@@ -518,7 +434,6 @@ export interface _SERVICE {
   'transferMasterProfile' : ActorMethod<[Principal], string>,
   'unbanLiteHandle' : ActorMethod<[string], LiteAdminWrite>,
   'unblock' : ActorMethod<[Principal], string>,
-  'unfollow' : ActorMethod<[Principal], string>,
   'unhideLitePost' : ActorMethod<[string], LiteAdminWrite>,
   /**
    * / Founder: permanently delete every legacy master-contact note (cycle / inbox cleanup).

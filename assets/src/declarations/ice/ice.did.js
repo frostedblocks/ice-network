@@ -21,10 +21,6 @@ export const idlFactory = ({ IDL }) => {
     'ok' : LiteAdmin,
     'unauthorized' : IDL.Null,
   });
-  const Associates = IDL.Record({
-    'followers' : IDL.Vec(IDL.Principal),
-    'following' : IDL.Vec(IDL.Principal),
-  });
   const Time = IDL.Int;
   const Comment = IDL.Record({
     'id' : IDL.Nat,
@@ -72,12 +68,6 @@ export const idlFactory = ({ IDL }) => {
     'message' : IDL.Text,
     'refId' : IDL.Nat,
   });
-  const PendingPayment = IDL.Record({
-    'user' : IDL.Principal,
-    'tokens' : IDL.Nat,
-    'priceE8s' : IDL.Nat,
-    'requestedAt' : Time,
-  });
   const UserProfile = IDL.Record({
     'bio' : IDL.Text,
     'username' : IDL.Text,
@@ -96,11 +86,6 @@ export const idlFactory = ({ IDL }) => {
     'totalReportFlags' : IDL.Nat,
     'totalComments' : IDL.Nat,
   });
-  const SubOffer = IDL.Record({
-    'tierLabel' : IDL.Text,
-    'tokens' : IDL.Nat,
-    'priceE8s' : IDL.Nat,
-  });
   const TreasuryStats = IDL.Record({
     'pendingCount' : IDL.Nat,
     'totalIcpReceivedE8s' : IDL.Nat,
@@ -110,8 +95,6 @@ export const idlFactory = ({ IDL }) => {
     'addComment' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Opt(IDL.Nat)], []),
     'adminBanUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'adminClearIcpE8s' : IDL.Func([IDL.Principal], [IDL.Text], []),
-    'adminClearTokens' : IDL.Func([IDL.Principal], [IDL.Text], []),
-    'adminConfirmPayment' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'adminConvertTreasuryIcpToFactoryCycles' : IDL.Func(
         [IDL.Nat],
         [IDL.Text],
@@ -120,38 +103,6 @@ export const idlFactory = ({ IDL }) => {
     'adminCreditIcpE8s' : IDL.Func([IDL.Principal, IDL.Nat], [IDL.Text], []),
     'adminDebitIcpE8s' : IDL.Func([IDL.Principal, IDL.Nat], [IDL.Text], []),
     'adminDeleteProfile' : IDL.Func([IDL.Principal], [IDL.Text], []),
-    'adminGetReferralTracker' : IDL.Func(
-        [],
-        [
-          IDL.Record({
-            'uniqueInviters' : IDL.Nat,
-            'threshold' : IDL.Nat,
-            'inviters' : IDL.Vec(
-              IDL.Record({
-                'principal' : IDL.Text,
-                'username' : IDL.Text,
-                'count' : IDL.Nat,
-                'claimed' : IDL.Bool,
-                'eligible' : IDL.Bool,
-              })
-            ),
-            'authorized' : IDL.Bool,
-            'links' : IDL.Vec(
-              IDL.Record({
-                'inviterUsername' : IDL.Text,
-                'inviter' : IDL.Text,
-                'newUsername' : IDL.Text,
-                'newUser' : IDL.Text,
-              })
-            ),
-            'unlockedCount' : IDL.Nat,
-            'totalPaidReferrals' : IDL.Nat,
-            'claimedCount' : IDL.Nat,
-          }),
-        ],
-        ['query'],
-      ),
-    'adminGrantTokens' : IDL.Func([IDL.Principal, IDL.Nat], [IDL.Bool], []),
     'adminHidePost' : IDL.Func([IDL.Nat], [IDL.Bool], []),
     'adminListProfiles' : IDL.Func(
         [],
@@ -174,8 +125,6 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminRegisterAllExistingUsers' : IDL.Func([], [IDL.Text], []),
-    'adminRejectPayment' : IDL.Func([IDL.Nat], [IDL.Text], []),
-    'adminRemoveTokens' : IDL.Func([IDL.Principal, IDL.Nat], [IDL.Text], []),
     'adminSearchUsers' : IDL.Func(
         [IDL.Text, IDL.Nat],
         [IDL.Vec(AdminUserInfo)],
@@ -202,28 +151,18 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminSetPaymentsEnabled' : IDL.Func([IDL.Bool], [IDL.Text], []),
-    'adminSetPrices' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [IDL.Text], []),
-    'adminSetReferralThreshold' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'adminSetRegistrationFee' : IDL.Func(
         [IDL.Bool, IDL.Nat, IDL.Nat],
         [IDL.Text],
         [],
       ),
-    'adminSetTipUnlockMinE8s' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'adminSetTippingEnabled' : IDL.Func([IDL.Bool], [IDL.Text], []),
-    'adminSetTokenPacks' : IDL.Func(
-        [IDL.Nat, IDL.Nat, IDL.Nat, IDL.Nat, IDL.Nat, IDL.Nat],
-        [IDL.Text],
-        [],
-      ),
     'adminUnbanUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'adminUnhidePost' : IDL.Func([IDL.Nat], [IDL.Bool], []),
     'adminUnmarkRegistered' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'banLiteHandle' : IDL.Func([IDL.Text], [LiteAdminWrite], []),
     'block' : IDL.Func([IDL.Principal], [IDL.Text], []),
-    'buyTokenPack' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'canManageLiteAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-    'chargeForMessage' : IDL.Func([], [IDL.Bool], []),
     'claimLiteAdmin' : IDL.Func([], [IDL.Text], []),
     'claimMasterProfile' : IDL.Func([], [IDL.Text], []),
     'completePrincipalMigration' : IDL.Func([], [IDL.Text], []),
@@ -246,8 +185,6 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Principal)],
         ['query'],
       ),
-    'follow' : IDL.Func([IDL.Principal], [IDL.Text], []),
-    'getAssociates' : IDL.Func([IDL.Principal], [Associates], ['query']),
     'getBannedUsers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getBlocked' : IDL.Func(
         [IDL.Principal],
@@ -303,17 +240,6 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Text)],
         ['query'],
       ),
-    'getFollowers' : IDL.Func(
-        [IDL.Principal],
-        [IDL.Vec(IDL.Principal)],
-        ['query'],
-      ),
-    'getFollowing' : IDL.Func(
-        [IDL.Principal],
-        [IDL.Vec(IDL.Principal)],
-        ['query'],
-      ),
-    'getFollowingPeoplePosts' : IDL.Func([IDL.Nat], [IDL.Vec(Post)], ['query']),
     'getHomeFeed' : IDL.Func([IDL.Nat], [IDL.Vec(Post)], ['query']),
     'getIceTreasuryIcpBalanceE8s' : IDL.Func([], [IDL.Nat], []),
     'getLimits' : IDL.Func([], [Limits], ['query']),
@@ -324,43 +250,6 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getMyIcpE8s' : IDL.Func([], [IDL.Nat], ['query']),
-    'getMyReferralInvites' : IDL.Func(
-        [],
-        [
-          IDL.Record({
-            'threshold' : IDL.Nat,
-            'invites' : IDL.Vec(
-              IDL.Record({ 'principal' : IDL.Text, 'username' : IDL.Text })
-            ),
-            'count' : IDL.Nat,
-          }),
-        ],
-        ['query'],
-      ),
-    'getMyReferralStatus' : IDL.Func(
-        [],
-        [
-          IDL.Record({
-            'threshold' : IDL.Nat,
-            'count' : IDL.Nat,
-            'claimed' : IDL.Bool,
-            'eligible' : IDL.Bool,
-            'invitePrincipal' : IDL.Text,
-          }),
-        ],
-        ['query'],
-      ),
-    'getMyTipUnlockStatus' : IDL.Func(
-        [],
-        [
-          IDL.Record({
-            'unlocked' : IDL.Bool,
-            'paidToMasterE8s' : IDL.Nat,
-            'requiredE8s' : IDL.Nat,
-          }),
-        ],
-        ['query'],
-      ),
     'getMyTokens' : IDL.Func([], [IDL.Nat], ['query']),
     'getNnsDepositInfo' : IDL.Func(
         [IDL.Principal],
@@ -379,11 +268,6 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getOwner' : IDL.Func([], [IDL.Principal], ['query']),
-    'getPendingPayments' : IDL.Func(
-        [],
-        [IDL.Vec(IDL.Tuple(IDL.Nat, PendingPayment))],
-        ['query'],
-      ),
     'getPost' : IDL.Func([IDL.Nat], [IDL.Opt(Post)], ['query']),
     'getPostCategory' : IDL.Func([IDL.Nat], [IDL.Text], ['query']),
     'getPostsByAuthor' : IDL.Func(
@@ -403,13 +287,9 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getProfile' : IDL.Func([IDL.Principal], [IDL.Opt(UserProfile)], ['query']),
     'getRecentPosts' : IDL.Func([IDL.Nat], [IDL.Vec(Post)], ['query']),
-    'getReferralThreshold' : IDL.Func([], [IDL.Nat], ['query']),
     'getRegistrationFeeE8s' : IDL.Func([], [IDL.Nat], ['query']),
     'getReportedPosts' : IDL.Func([], [IDL.Vec(Post)], ['query']),
     'getSiteStats' : IDL.Func([], [SiteStats], ['query']),
-    'getSubscriptionOffers' : IDL.Func([], [IDL.Vec(SubOffer)], ['query']),
-    'getTiers' : IDL.Func([], [IDL.Vec(IDL.Nat)], ['query']),
-    'getTipUnlockMinE8s' : IDL.Func([], [IDL.Nat], ['query']),
     'getTokensPerMessage' : IDL.Func([], [IDL.Nat], ['query']),
     'getTreasuryStats' : IDL.Func([], [TreasuryStats], ['query']),
     'getUnreadMasterContactCount' : IDL.Func([], [IDL.Nat], ['query']),
@@ -431,7 +311,6 @@ export const idlFactory = ({ IDL }) => {
       ),
     'hasLiked' : IDL.Func([IDL.Nat, IDL.Principal], [IDL.Bool], ['query']),
     'hasLoved' : IDL.Func([IDL.Nat, IDL.Principal], [IDL.Bool], ['query']),
-    'hasUnlockedTipping' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'hideLitePost' : IDL.Func([IDL.Text], [LiteAdminWrite], []),
     'isBanned' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isBlocked' : IDL.Func(
@@ -447,6 +326,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'isLiteAdminClaimed' : IDL.Func([], [IDL.Bool], ['query']),
     'isMessagingFree' : IDL.Func([], [IDL.Bool], ['query']),
+    'isMintFeeWaived' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isOwner' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isOwnerVisible' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isPaymentsEnabled' : IDL.Func([], [IDL.Bool], ['query']),
@@ -466,15 +346,8 @@ export const idlFactory = ({ IDL }) => {
     'markAllNotificationsRead' : IDL.Func([], [IDL.Text], []),
     'markMasterContactRead' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'markNotificationRead' : IDL.Func([IDL.Nat], [IDL.Text], []),
-    'refundMessageCharge' : IDL.Func([], [IDL.Bool], []),
     'register' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Text], []),
-    'registerWithReferral' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
-        [IDL.Text],
-        [],
-      ),
     'reportPost' : IDL.Func([IDL.Nat], [IDL.Text], []),
-    'requestPaidSubscription' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'searchPosts' : IDL.Func([IDL.Text], [IDL.Vec(Post)], ['query']),
     'setCloak' : IDL.Func([IDL.Bool], [IDL.Bool], []),
     'setFeedBridgeOpen' : IDL.Func([IDL.Bool], [LiteAdminWrite], []),
@@ -486,14 +359,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text],
         [],
       ),
-    'spendTokens' : IDL.Func([IDL.Nat], [IDL.Bool], []),
-    'subscribe' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'tipIcp' : IDL.Func([IDL.Principal, IDL.Nat], [IDL.Text], []),
     'tipTokens' : IDL.Func([IDL.Principal, IDL.Nat], [IDL.Text], []),
     'transferMasterProfile' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'unbanLiteHandle' : IDL.Func([IDL.Text], [LiteAdminWrite], []),
     'unblock' : IDL.Func([IDL.Principal], [IDL.Text], []),
-    'unfollow' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'unhideLitePost' : IDL.Func([IDL.Text], [LiteAdminWrite], []),
     'wipeAllMasterContacts' : IDL.Func([], [IDL.Text], []),
   });

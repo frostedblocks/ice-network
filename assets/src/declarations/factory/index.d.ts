@@ -7,7 +7,7 @@ import type {
 import type { Principal } from "@icp-sdk/core/principal";
 import type { IDL } from "@icp-sdk/core/candid";
 
-import { _SERVICE } from './ice.did';
+import { _SERVICE } from './factory.did';
 
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const canisterId: string;
@@ -47,4 +47,4 @@ export declare const createActor: (
  * Intialized Actor using default settings, ready to talk to a canister using its candid interface
  * @constructs {@link ActorSubClass}
  */
-export declare const ice: ActorSubclass<_SERVICE>;
+export declare const factory: ActorSubclass<_SERVICE>;

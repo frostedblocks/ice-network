@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getEnv } from "@/lib/env";
-import { getRecorderSiteActor } from "@/lib/ic";
+import { getRecorderSiteActor, optFirst } from "@/lib/ic";
 import { getStripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
@@ -28,7 +28,8 @@ export async function POST(req: NextRequest) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      await handleCheckoutCompleted(session);
+      // Direct-charge Connect events carry the connected account on event.account.
+      await handleCheckoutCompleted(session, event.account ?? null);
     }
     return NextResponse.json({ received: true });
   } catch (e) {
@@ -38,27 +39,49 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+async function handleCheckoutCompleted(
+  session: Stripe.Checkout.Session,
+  connectedAccountId: string | null,
+) {
   const siteId = session.metadata?.siteId?.trim();
   const productIdRaw = session.metadata?.productId?.trim();
   if (!siteId || !productIdRaw) {
     throw new Error("checkout.session.completed missing siteId/productId metadata");
   }
 
-  const productId = BigInt(productIdRaw);
-  const amountCents = BigInt(
-    session.amount_total ??
-      (session.metadata?.amountCents
-        ? Number(session.metadata.amountCents)
-        : 0),
-  );
+  // Money integrity: trust Stripe amount_total only — never client/metadata amountCents.
+  if (session.amount_total == null) {
+    throw new Error("checkout.session.completed missing amount_total");
+  }
+  const amountCents = BigInt(session.amount_total);
+  if (amountCents <= BigInt(0)) {
+    throw new Error("checkout.session.completed amount_total must be > 0");
+  }
+
   const currency = (session.currency || session.metadata?.currency || "usd").toLowerCase();
   const buyerRef = session.id; // Stripe Checkout Session id — no email/name on-chain
 
   if (!buyerRef) throw new Error("Missing session.id for buyerRef");
-  if (amountCents <= BigInt(0)) throw new Error("Missing amount on session");
+
+  const eventAccount = connectedAccountId?.trim() ?? "";
+  if (!eventAccount) {
+    throw new Error(
+      "checkout.session.completed missing event.account (Connect connected-account webhook required)",
+    );
+  }
 
   const actor = await getRecorderSiteActor(siteId);
+  const stripePublic = optFirst(await actor.getStripePublic());
+  if (!stripePublic?.accountId?.trim()) {
+    throw new Error("Site has no Stripe Connect account configured");
+  }
+  if (stripePublic.accountId.trim() !== eventAccount) {
+    throw new Error(
+      "Stripe connected account does not match site stripe accountId",
+    );
+  }
+
+  const productId = BigInt(productIdRaw);
   const result = await actor.recordReceipt(
     productId,
     buyerRef,

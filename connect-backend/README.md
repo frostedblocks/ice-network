@@ -13,7 +13,7 @@ Deploy on Vercel. Owners connect payouts via Express OAuth; buyers pay via Check
 | `GET /api/connect/callback` | Stripe OAuth return. Verifies state, exchanges `code` → connected account id, sets httpOnly completion cookie (siteId + ownerPrincipal + accountId), redirects to `NEXT_PUBLIC_APP_ORIGIN?connect=success&site=…`. |
 | `GET /api/connect/result?siteId=` | Requires completion cookie. Re-checks canister `getOwner` matches cookie owner; then **trusted recorder** calls `bindStripePublic`. Returns `{ accountId, publishableKey }` once. **Does not** use FE `setStripePublic`. |
 | `POST /api/checkout/session` | Body `{ siteId, productId, successPath?, cancelPath? }` **only**. Reads `getProduct` + `getStripePublic` from canister. Creates Checkout with `stripeAccount`. **Does not trust client amounts.** |
-| `POST /api/webhooks/stripe` | Verifies signature. On `checkout.session.completed`, calls `recordReceipt` with backend IC identity. |
+| `POST /api/webhooks/stripe` | Verifies signature. On `checkout.session.completed`, uses Stripe `amount_total` only (no metadata amount fallback), requires `event.account` to match site `getStripePublic.accountId`, then calls `recordReceipt` with backend IC identity. |
 
 MVP **platform fee = 0%** (`application_fee_amount` omitted unless `CONNECT_PLATFORM_FEE_BPS` &gt; 0).
 
@@ -56,7 +56,7 @@ Session key material is sent only to this trusted backend over HTTPS (already ho
 3. Add OAuth redirect URI: `{CONNECT_PUBLIC_ORIGIN}/api/connect/callback`.
 4. Create a webhook endpoint → `{CONNECT_PUBLIC_ORIGIN}/api/webhooks/stripe`.
    - Subscribe to `checkout.session.completed`.
-   - For **direct charges** (`stripeAccount` on Session), enable listening on **Connected accounts** (Connect webhook) so platform receives those events.
+   - For **direct charges** (`stripeAccount` on Session), enable listening on **Connected accounts** (Connect webhook) so platform receives those events. The handler **requires** `event.account` and fails closed if it does not match the site canister’s bound Stripe `accountId`.
 
 ### 2. IC identity (trusted recorder)
 
@@ -74,11 +74,22 @@ npm install
 npx tsx scripts/print-principal.ts
 ```
 
-### 3. Factory: `adminSetConnectBackend`
+### 3. Factory: `adminSetConnectBackend` + seed existing sites
 
-After deploy, call Factory **`adminSetConnectBackend(principal)`** with this backend’s principal so new mints `seedTrustedRecorder`. For existing store sites, owner/factory must `addTrustedRecorder` / `seedTrustedRecorder` the same principal or `recordReceipt` / `bindStripePublic` will fail.
+After deploy, call Factory **`adminSetConnectBackend(principal)`** with this backend’s principal so **new** mints `seedTrustedRecorder` at bootstrap. Existing store sites stay unseeded until you call **`adminSeedTrustedRecorderOnSite(site)`** (or they will fail `recordReceipt` / `bindStripePublic`).
 
-> If `adminSetConnectBackend` is not yet live on your Factory build, seed recorders manually until the admin API is deployed.
+Exact dfx/candid steps, site listing, and assets `VITE_CONNECT_API_ORIGIN`: see **`docs/CONNECT_OPS.md`**.
+
+```bash
+# Factory owner identity on Heavy — replace placeholders
+dfx canister --network ic call factory adminSetConnectBackend \
+  '(principal "CONNECT_BACKEND_PRINCIPAL")'
+dfx canister --network ic call factory getConnectBackend --query
+dfx canister --network ic call factory adminSeedTrustedRecorderOnSite \
+  '(principal "SITE_ID")'
+```
+
+Also rebuild **assets** with `VITE_CONNECT_API_ORIGIN=<CONNECT_PUBLIC_ORIGIN>` or the UI shows Connect not configured.
 
 ### 4. Vercel env
 
@@ -114,16 +125,24 @@ Also deploy **assets** so SiteStore sends owner proof and AuthClient uses Ed2551
 4. FE detects `connect=success` and `fetch(CONNECT_PUBLIC_ORIGIN + '/api/connect/result?siteId=' + siteId, { credentials: 'include' })`.
 5. Backend trusted recorder binds via `bindStripePublic` — **never** FE `setStripePublic`, never paste arbitrary account ids.
 
-## Checkout allowlist
+## Checkout allowlist + CORS (custom-domain Buy)
 
-`successPath` / `cancelPath` may be absolute `https` URLs or paths. Allowed bases only:
+PublicSite sends **relative** `successPath` / `cancelPath` only (not absolute `successUrl` / `cancelUrl`).
+The backend builds absolute Stripe return URLs from the **allowlisted request `Origin`**.
 
-- Custom domain / `publicUrl` from `getDomainStatus` (https)
-- `https://{siteId}.icp0.io/`
-- `https://{siteId}.raw.icp0.io/`
-- `NEXT_PUBLIC_APP_ORIGIN` with `#/site/{siteId}` hash **or** `?site={siteId}`
+Allowed bases only:
 
-Open redirects are rejected.
+- Request `Origin` when it matches one of:
+  - `NEXT_PUBLIC_APP_ORIGIN` (frostedblocks.com)
+  - `https://{siteId}.icp0.io` / `https://{siteId}.raw.icp0.io` (and other `*.icp0.io` / `*.ic0.app` for CORS)
+  - Custom domain / `publicUrl` from canister `getDomainStatus` (https)
+  - Extra origins in env `ALLOWED_ORIGINS` (comma-separated)
+- Absolute `https` values in `successPath`/`cancelPath` are still accepted only if their origin is in that allowlist (legacy); FE must not send `successUrl`/`cancelUrl`.
+- On frostedblocks.com, return URLs must include this site (`#/site/{siteId}` or `?site={siteId}`).
+
+**CORS:** Checkout OPTIONS/POST allow brand + ICP asset origins + `ALLOWED_ORIGINS`. For a site custom domain, pass `?siteId=` on the checkout URL so preflight can load `getDomainStatus` and reflect that Origin. Connect owner routes remain usable from brand / ICP / `ALLOWED_ORIGINS`.
+
+Open redirects to arbitrary hosts are rejected.
 
 ## Security notes
 
@@ -133,7 +152,7 @@ Open redirects are rejected.
 - **Express OAuth only** — not Standard Connect; no “paste any account id” path in this backend.
 - OAuth `state` is HMAC-signed with expiry; completion cookie is httpOnly, `SameSite=None; Secure`, short-lived, cleared after one successful `result` read; result re-checks `getOwner`.
 - Webhook signature verified before any IC call; receipts store `buyerRef = session.id` only (no email/name).
-- CORS for credentialed connect / checkout is restricted to `NEXT_PUBLIC_APP_ORIGIN`.
+- CORS: brand (`NEXT_PUBLIC_APP_ORIGIN`) + `*.icp0.io` / `*.ic0.app` + `ALLOWED_ORIGINS`; checkout also allows the site custom domain from `getDomainStatus` when `?siteId=` is present. Never reflects arbitrary Origins.
 
 ## Local dev
 

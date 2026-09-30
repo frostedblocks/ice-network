@@ -3,7 +3,7 @@ import { invalidateActionFeesCache } from "./useActionFees";
 
 /**
  * Master-only ICP economy:
- * - Join fee (II → ICE)
+ * - Join is permanently free (no toggle)
  * - Action fees from prepaid ICP (post / love)
  * - Tipping on/off (II → recipient II)
  */
@@ -12,9 +12,6 @@ export default function MasterEconomyControls({ actor }) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
-
-  const [regEnabled, setRegEnabled] = useState(true);
-  const [regFeeIcp, setRegFeeIcp] = useState("5");
 
   const [postOn, setPostOn] = useState(false);
   const [loveOn, setLoveOn] = useState(false);
@@ -48,8 +45,6 @@ export default function MasterEconomyControls({ actor }) {
     setErr("");
     try {
       const cfg = await actor.getEconomyConfig();
-      setRegEnabled(!!cfg.registrationFeeEnabled);
-      setRegFeeIcp(e8sToIcp(cfg.registrationFeeE8s));
       setPostOn(!!cfg.postFeeEnabled);
       setLoveOn(!!cfg.loveFeeEnabled);
       setMsgOn(!!cfg.messageFeeEnabled);
@@ -68,32 +63,6 @@ export default function MasterEconomyControls({ actor }) {
   useEffect(() => {
     load();
   }, [actor]);
-
-  const saveRegistration = async (enabledOverride = null) => {
-    if (!actor) return;
-    setSaving(true);
-    setMsg("");
-    setErr("");
-    try {
-      const enabled = enabledOverride !== null ? enabledOverride : regEnabled;
-      let feeE8s = icpToE8s(regFeeIcp);
-      if (enabled && feeE8s === 0n) feeE8s = 100_000_000n;
-      const result = await actor.adminSetRegistrationFee(enabled, feeE8s, 0n);
-      const text = typeof result === "string" ? result : "Saved.";
-      if (/not authorized/i.test(text)) {
-        setErr(text + " Log in with a founder/master Internet Identity.");
-      } else {
-        if (enabledOverride !== null) setRegEnabled(enabled);
-        setMsg(text);
-        await load();
-      }
-    } catch (e) {
-      console.error(e);
-      setErr(e?.message || "Failed to save registration settings.");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const saveActionFees = async () => {
     if (!actor?.adminSetActionFees) {
@@ -173,33 +142,17 @@ export default function MasterEconomyControls({ actor }) {
     <div className="ice-glass-soft" style={{ padding: "1rem", marginTop: "0.75rem" }}>
       <h3 style={{ margin: "0 0 0.35rem", color: "#f8fafc", fontSize: "1rem" }}>ICP economy</h3>
       <p style={{ margin: "0 0 0.85rem", color: "#64748b", fontSize: "0.8rem", lineHeight: 1.45 }}>
-        Username registration is free. Optional site mint is 10 ICP on Factory. Post and love fees
-        (when on) spend prepaid ICP. Tipping can be turned on or off below.
+        Join / Create account is permanently free. Optional site mint is 10 ICP on Factory. Post and
+        love fees (when on) spend prepaid ICP. Tipping can be turned on or off below.
       </p>
 
       <div style={{ marginBottom: "1.15rem" }}>
         <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#7dd3fc", marginBottom: "0.45rem" }}>
-          JOIN FEE
+          JOIN
         </div>
-        <p style={{ margin: "0 0 0.45rem", color: "#64748b", fontSize: "0.75rem", lineHeight: 1.4 }}>
-          One-time Create account fee. Paid from the member’s II to ICE (not prepaid balance).
+        <p style={{ margin: 0, color: "#86efac", fontSize: "0.8rem", lineHeight: 1.4 }}>
+          Permanently free — no Join fee toggle. Site mint fee (if any) is charged on Factory only.
         </p>
-        <label style={{ display: "flex", gap: "0.45rem", alignItems: "center", color: "#cbd5e1", fontSize: "0.85rem" }}>
-          <input
-            type="checkbox"
-            checked={regEnabled}
-            onChange={() => saveRegistration(!regEnabled)}
-            disabled={saving}
-          />
-          Join fee enabled
-        </label>
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
-          <input value={regFeeIcp} onChange={(e) => setRegFeeIcp(e.target.value)} style={inputStyle} />
-          <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>ICP</span>
-          <button type="button" className="ice-btn" disabled={saving} onClick={() => saveRegistration()}>
-            Save join fee
-          </button>
-        </div>
       </div>
 
       <div style={{ marginBottom: "1.15rem" }}>

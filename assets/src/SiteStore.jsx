@@ -4,6 +4,8 @@ import { unwrapOpt } from "./candidUtils";
 import { copyTextToClipboard } from "./copyText";
 
 const CONNECT_ORIGIN = String(import.meta.env.VITE_CONNECT_API_ORIGIN || "").replace(/\/$/, "");
+const CONNECT_SETUP_MSG =
+  "Connect backend not configured — rebuild assets with VITE_CONNECT_API_ORIGIN set to your Connect backend origin (see docs/CONNECT_OPS.md).";
 const DISCLOSURE =
   "You pay the seller via Stripe. Frostblocks does not hold this payment.";
 const SHARE_PREFIX =
@@ -267,7 +269,7 @@ export default function SiteStore({ identity, siteId }) {
 
   const startConnect = async () => {
     if (!CONNECT_ORIGIN) {
-      flash("", "Connect backend not configured");
+      flash("", CONNECT_SETUP_MSG);
       return;
     }
     if (!siteId || !identity) {
@@ -508,7 +510,7 @@ export default function SiteStore({ identity, siteId }) {
         </p>
         {!CONNECT_ORIGIN ? (
           <p className="ice-alert-error" style={{ marginBottom: "0.75rem" }}>
-            Connect backend not configured
+            {CONNECT_SETUP_MSG}
           </p>
         ) : null}
         {stripe?.accountId ? (

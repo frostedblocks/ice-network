@@ -6,7 +6,6 @@ import LimitControls from "./LimitControls";
 import MasterEconomyControls from "./MasterEconomyControls";
 import MasterUserSearch from "./MasterUserSearch";
 import MasterHostingControls from "./MasterHostingControls";
-import MasterSiteTransfer from "./MasterSiteTransfer";
 import MasterSiteResets from "./MasterSiteResets";
 import CycleBalance from "./CycleBalance";
 import MasterLiteActivate from "./MasterLiteActivate";
@@ -610,7 +609,6 @@ export default function Profile({ actor, identity }) {
             {masterTab === "hosting" && (
               <div className="ice-master-pane">
                 <MasterHostingControls identity={identity} />
-                <MasterSiteTransfer identity={identity} />
               </div>
             )}
 

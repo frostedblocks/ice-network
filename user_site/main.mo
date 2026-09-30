@@ -1557,6 +1557,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
   /// Connect backend only (trustedRecorders). No buyer PII.
   /// amountCents = amount actually paid (Stripe session.amount_total), not live product price
   /// (seller may have changed price after checkout was created).
+  /// Rejects missing or inactive products (money integrity — no receipt for delisted SKUs).
   public shared(msg) func recordReceipt(
     productId : Nat,
     buyerRef : Text,
@@ -1569,6 +1570,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
     if (Text.size(buyerRef) == 0) { return #err("buyerRef required") };
     if (amountCents == 0) { return #err("amount required") };
     // Idempotent: same Stripe session id must not create duplicate receipts
+    // (checked before active gate so webhook retries still succeed after delist).
     for ((_, existing) in receipts.entries()) {
       if (Text.equal(existing.buyerRef, buyerRef)) {
         return #ok(existing)
@@ -1577,6 +1579,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
     switch (products.get(productId)) {
       case null { return #err("Product not found") };
       case (?prod) {
+        if (not prod.active) { return #err("Product is not active") };
         let cur = if (Text.size(currency) == 0) { prod.currency } else { Text.toLowercase(currency) };
         let id = nextReceiptId;
         nextReceiptId += 1;

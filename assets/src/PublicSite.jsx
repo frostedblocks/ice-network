@@ -5,6 +5,8 @@ import {
 } from "./actors";
 
 const CONNECT_ORIGIN = String(import.meta.env.VITE_CONNECT_API_ORIGIN || "").replace(/\/$/, "");
+const CONNECT_SETUP_MSG =
+  "Connect backend not configured — rebuild assets with VITE_CONNECT_API_ORIGIN set to your Connect backend origin (see docs/CONNECT_OPS.md).";
 const STORE_DISCLOSURE =
   "You pay the seller via Stripe. Frostblocks does not hold this payment.";
 
@@ -350,24 +352,31 @@ export default function PublicSite({
     const pid = productIdKey(product?.id);
     if (!pid || buyBusyId) return;
     if (!CONNECT_ORIGIN) {
-      setBuyError("Connect backend not configured");
+      setBuyError(CONNECT_SETUP_MSG);
       return;
     }
     setBuyBusyId(pid);
     setBuyError("");
     try {
-      const successUrl = `${window.location.origin}${window.location.pathname}?checkout=success${publicSiteHash(siteId, "store")}`;
-      const cancelUrl = `${window.location.origin}${window.location.pathname}${publicSiteHash(siteId, "store")}`;
-      const res = await fetch(`${CONNECT_ORIGIN}/api/checkout/session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          siteId,
-          productId: pid,
-          successUrl,
-          cancelUrl,
-        }),
-      });
+      // Relative paths only — connect-backend builds absolute URLs from the
+      // allowlisted request Origin (custom domain / icp0 / frostedblocks).
+      const pathBase = window.location.pathname || "/";
+      const storeHash = publicSiteHash(siteId, "store");
+      const successPath = `${pathBase}?checkout=success${storeHash}`;
+      const cancelPath = `${pathBase}${storeHash}`;
+      const res = await fetch(
+        `${CONNECT_ORIGIN}/api/checkout/session?siteId=${encodeURIComponent(siteId)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            siteId,
+            productId: pid,
+            successPath,
+            cancelPath,
+          }),
+        }
+      );
       if (!res.ok) {
         throw new Error(`Checkout failed (HTTP ${res.status})`);
       }
