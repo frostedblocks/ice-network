@@ -356,7 +356,11 @@ export default function App() {
 
       // Chrome flicker fix: default AuthClient idle callback does logout + location.reload(),
       // which can loop when a stale II session is restored. Soft-clear session instead.
+      // Ed25519 session keys are JSON-serializable so Connect backend can
+      // reconstruct DelegationIdentity and verify owner proof via IC.
+      // Existing ECDSA II sessions need one re-login after this change.
       const client = await AuthClient.create({
+        keyType: "Ed25519",
         idleOptions: {
           disableDefaultIdleCallback: true,
           onIdle: async () => {
