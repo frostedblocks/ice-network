@@ -567,9 +567,9 @@ persistent actor Ice {
 
   // Registration fee (stable names from prior deploy + toggle)
   /// Legacy Join fee (disabled by fee-at-mint migration; site mint fee is on Factory).
-  private stable var REGISTRATION_FEE_E8S : Nat = 500_000_000;
+  private stable var REGISTRATION_FEE_E8S : Nat = 0;
   private stable var REGISTRATION_BONUS_TOKENS : Nat = 0; // token packs removed — no soft-token bonus
-  private stable var registrationFeeEnabled : Bool = true;
+  private stable var registrationFeeEnabled : Bool = false;
   /// One-shot migrations for fee amount
   private stable var registrationFee5IcpV1 : Bool = false;
   private stable var registrationFee2IcpV1 : Bool = false;
@@ -1283,36 +1283,15 @@ persistent actor Ice {
     };
   };
 
+  /// Product lock: Join is free forever. Never sets registrationFeeEnabled := true.
   private func migrateRegistrationFeeIfNeeded() {
-    // One-shot only. After master saves via adminSetRegistrationFee, flags stay true
-    // so this never overwrites their chosen fee amount (except ops force-to-5 below once).
-    if (not registrationFee2IcpV1) {
-      REGISTRATION_FEE_E8S := 500_000_000; // 5 ICP
-      registrationFeeEnabled := true;
-      registrationFee2IcpV1 := true;
-      registrationFee5IcpV1 := true;
-    } else if (not registrationFee5IcpV1) {
-      REGISTRATION_FEE_E8S := 500_000_000;
-      registrationFeeEnabled := true;
-      registrationFee5IcpV1 := true;
-    };
-    // Ops: set join fee to 5 ICP once on upgrade (user request)
-    if (not registrationFeeTo5IcpOpsV1) {
-      REGISTRATION_FEE_E8S := 500_000_000;
-      registrationFeeEnabled := true;
-      registrationFeeTo5IcpOpsV1 := true;
-      registrationFee2IcpV1 := true;
-      registrationFee5IcpV1 := true;
-    };
-    // Product: fee-at-mint only — free Join/register; 10 ICP charged on Factory mint.
-    if (not registrationFeeOffFeeAtMintV1) {
-      REGISTRATION_FEE_E8S := 0;
-      registrationFeeEnabled := false;
-      registrationFeeOffFeeAtMintV1 := true;
-      registrationFee2IcpV1 := true;
-      registrationFee5IcpV1 := true;
-      registrationFeeTo5IcpOpsV1 := true;
-    };
+    REGISTRATION_FEE_E8S := 0;
+    registrationFeeEnabled := false;
+    // Collapse legacy one-shots so old enable migrations cannot re-run.
+    registrationFee2IcpV1 := true;
+    registrationFee5IcpV1 := true;
+    registrationFeeTo5IcpOpsV1 := true;
+    registrationFeeOffFeeAtMintV1 := true;
   };
 
   /// One-shot / status: ensures launch migration ran, returns whether pack payments are live.
@@ -1345,8 +1324,8 @@ persistent actor Ice {
     tipUnlockMinE8s : Nat;
   } {
     {
-      registrationFeeEnabled = registrationFeeEnabled;
-      registrationFeeE8s = REGISTRATION_FEE_E8S;
+      registrationFeeEnabled = false; // Join permanently free
+      registrationFeeE8s = 0;
       registrationBonusTokens = 0;
       // Packs removed — zeros for legacy UI fields
       tier1Tokens = 0;
@@ -1448,17 +1427,15 @@ persistent actor Ice {
     "Cleared " # Nat.toText(had) # " e8s prepaid ICP. Balance is now 0"
   };
 
-  /// Apply current first-login fee migration (2 ICP). Master can still change via adminSetRegistrationFee.
+  /// Status only — Join fee is permanently off (fee-at-mint). Cannot re-enable.
   public shared(_msg) func ensureRegistrationFee5Icp() : async Text {
     migrateRegistrationFeeIfNeeded();
-    "Registration fee: " # (if (registrationFeeEnabled) { "ON" } else { "OFF" })
-      # " · " # Nat.toText(REGISTRATION_FEE_E8S) # " e8s"
+    "Registration fee: OFF (permanently) · 0 e8s"
   };
 
   public shared(_msg) func ensureRegistrationFee2Icp() : async Text {
     migrateRegistrationFeeIfNeeded();
-    "Registration fee: " # (if (registrationFeeEnabled) { "ON" } else { "OFF" })
-      # " · " # Nat.toText(REGISTRATION_FEE_E8S) # " e8s"
+    "Registration fee: OFF (permanently) · 0 e8s"
   };
 
   public shared(msg) func adminSetPaymentsEnabled(enabled : Bool) : async Text {
@@ -1469,17 +1446,21 @@ persistent actor Ice {
     else { "Token pack payments disabled" }
   };
 
-  /// Join fee is permanently off (fee-at-mint). Cannot re-enable.
+  /// Join fee is permanently off (fee-at-mint). Rejects any attempt to enable.
   public shared(msg) func adminSetRegistrationFee(
     enabled : Bool,
     feeE8s : Nat,
     bonusTokens : Nat
   ) : async Text {
     ignore msg;
-    ignore enabled;
     ignore feeE8s;
     ignore bonusTokens;
-    "Join fee permanently off (fee-at-mint). Cannot re-enable."
+    // Hard lock: never honor enabled=true; force stable state off.
+    migrateRegistrationFeeIfNeeded();
+    if (enabled) {
+      return "Join fee permanently off (fee-at-mint). Cannot re-enable."
+    };
+    "Join fee permanently off (fee-at-mint)."
   };
 
   /// Master: move primary owner record (optional; trusted masters keep admin rights either way).
@@ -2038,11 +2019,11 @@ persistent actor Ice {
   };
 
   public query func getRegistrationFeeE8s() : async Nat {
-    REGISTRATION_FEE_E8S
+    0
   };
 
   public query func isRegistrationFeeEnabled() : async Bool {
-    registrationFeeEnabled
+    false
   };
 
   /// Factory mint: waive 10 ICP site fee for master only.
@@ -2070,34 +2051,16 @@ persistent actor Ice {
       case null {};
     };
 
-    let chargeFee = registrationFeeEnabled and not isMaster(caller);
-
-    if (chargeFee) {
-      let fee = REGISTRATION_FEE_E8S;
-      switch (await chargeIcp(caller, fee)) {
-        case (?err) {
-          usernameIndex.delete(usernameKey(username));
-          return err;
-        };
-        case null {};
-      };
-      ignore await distributeJoinFeeProceeds(fee);
-
-      userProfiles.put(caller, { username; bio; avatarURL });
-      registeredUsers.put(caller, true);
+    // Join fee permanently off — never charge II→ICE on register (fee-at-mint on Factory).
+    userProfiles.put(caller, { username; bio; avatarURL });
+    registeredUsers.put(caller, true);
+    if (REGISTRATION_BONUS_TOKENS > 0) {
       creditTokens(caller, REGISTRATION_BONUS_TOKENS);
-      "Registered. Legacy Join fee paid. Site mint is separate on Factory if still required."
+    };
+    if (isMaster(caller)) {
+      "Registered (master — no fee). " # Nat.toText(REGISTRATION_BONUS_TOKENS) # " tokens credited."
     } else {
-      userProfiles.put(caller, { username; bio; avatarURL });
-      registeredUsers.put(caller, true);
-      if (REGISTRATION_BONUS_TOKENS > 0) {
-        creditTokens(caller, REGISTRATION_BONUS_TOKENS);
-      };
-      if (isMaster(caller)) {
-        "Registered (master — no fee). " # Nat.toText(REGISTRATION_BONUS_TOKENS) # " tokens credited."
-      } else {
-        "Registered (free). Mint your site when ready — 10 ICP at mint covers your canister and network."
-      }
+      "Registered (free). Mint your site when ready — 10 ICP at mint covers your canister and network."
     }
   };
 

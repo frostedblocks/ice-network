@@ -183,7 +183,7 @@ service : {
   /// One-shot / status: ensures launch migration ran, returns whether pack payments are live.
   ensurePaymentsLive: () -> (bool);
   ensureRegistrationFee2Icp: () -> (text);
-  /// Apply current first-login fee migration (2 ICP). Master can still change via adminSetRegistrationFee.
+  /// Status only — Join fee permanently off (fee-at-mint). Cannot re-enable via adminSetRegistrationFee.
   ensureRegistrationFee5Icp: () -> (text);
   fetchNnsDepositBalance: (user: principal) -> (nat);
   /// Batch: which of `authors` are blocked either way vs `viewer` (for feed filtering)
