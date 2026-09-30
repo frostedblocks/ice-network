@@ -14,8 +14,8 @@ import { createFactoryActor } from "./actors";
  * Factory is always retained. DFX ops is opt-in.
  */
 export default function SiteControllers({ identity, siteId }) {
-  const [nnsPrincipal, setNnsPrincipal] = useState(NNS_CONTROLLER);
-  const [includeDfx, setIncludeDfx] = useState(true);
+  const [nnsPrincipal, setNnsPrincipal] = useState("");
+  const [includeDfx, setIncludeDfx] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -108,8 +108,9 @@ export default function SiteControllers({ identity, siteId }) {
         <div>
           <h3 className="ice-panel-title">Controllers</h3>
           <p className="ice-panel-desc">
-            Who can manage this canister. Default: owner + NNS founder + dfx + factory. Factory is
-            always kept for reset, upgrade, and relink.
+            Who can manage this canister. Default: owner + factory only. Dfx ops and Extra NNS are
+            opt-in. Factory is always kept for reset, upgrade, and relink. Existing sites are not
+            mass-migrated — Apply only updates this site when you click.
           </p>
         </div>
       </div>
@@ -147,7 +148,7 @@ export default function SiteControllers({ identity, siteId }) {
           checked={includeDfx}
           onChange={(e) => setIncludeDfx(e.target.checked)}
         />
-        Include dfx ops principal
+        Include dfx ops principal (off by default)
       </label>
 
       <div className="ice-controller-list">

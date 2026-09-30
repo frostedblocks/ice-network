@@ -4,7 +4,7 @@ import { IDL } from "@dfinity/candid";
 
 /** Well-known principals */
 export const NNS_CONTROLLER = "gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae";
-/** Ops dfx identity — included in default controller set. */
+/** Ops dfx identity — opt-in only; not in the default controller set. */
 export const DFX_CONTROLLER = "vm63y-5g4h5-nz2ca-2ix5o-ulj6h-qhcla-ucukz-qbmij-yvcwi-lyjzr-3qe";
 export const FACTORY_CONTROLLER = "xfwx3-7yaaa-aaaas-qgxpq-cai";
 
@@ -104,12 +104,14 @@ export async function setSiteControllers(identity, siteCanisterId, controllerTex
 }
 
 /**
- * Production default controller set: owner + NNS founder + dfx + factory.
+ * Production default controller set: owner + factory only.
+ * NNS / dfx are opt-in via the SiteControllers UI (includeDfx / Extra NNS field).
+ * Existing live sites are not mass-migrated by this helper.
  */
-export function standardControllerList(userPrincipalText, nnsPrincipalText, includeOpsDfx = true) {
-  const out = [userPrincipalText, NNS_CONTROLLER, FACTORY_CONTROLLER];
+export function standardControllerList(userPrincipalText, nnsPrincipalText, includeOpsDfx = false) {
+  const out = [userPrincipalText, FACTORY_CONTROLLER];
   if (includeOpsDfx) out.push(DFX_CONTROLLER);
-  if (nnsPrincipalText && nnsPrincipalText.trim() && nnsPrincipalText.trim() !== NNS_CONTROLLER) {
+  if (nnsPrincipalText && nnsPrincipalText.trim()) {
     out.push(nnsPrincipalText.trim());
   }
   return [...new Set(out.filter(Boolean))];
@@ -117,9 +119,9 @@ export function standardControllerList(userPrincipalText, nnsPrincipalText, incl
 
 export const CONTROLLER_ROLE_HELP = [
   { id: "owner", label: "You (ICE login)", hint: "Site owner — full control" },
-  { id: "nns", label: "NNS founder", hint: "Visibility under NNS + founder recovery" },
-  { id: "dfx", label: "dfx ops", hint: "Deploy identity — included by default" },
   { id: "factory", label: "Factory", hint: "Required for reset / upgrade / relink — always kept" },
+  { id: "nns", label: "NNS founder", hint: "Optional — add via Extra NNS principal" },
+  { id: "dfx", label: "dfx ops", hint: "Optional deploy identity — off by default" },
 ];
 
 /**
