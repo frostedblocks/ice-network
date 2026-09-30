@@ -16,6 +16,14 @@ export async function OPTIONS(req: NextRequest) {
   return corsPreflight(req);
 }
 
+/**
+ * After Express OAuth callback: bind Stripe public config via trusted recorder.
+ *
+ * Completion cookie was minted only after verified connect/start (owner proof)
+ * → OAuth state → callback. Before bind we re-load getOwner and require it
+ * still matches the cookie's ownerPrincipal (rejects owner change / mismatch).
+ * accountId always comes from the signed cookie (Stripe OAuth), never the client.
+ */
 export async function GET(req: NextRequest) {
   try {
     const siteId = new URL(req.url).searchParams.get("siteId")?.trim();
@@ -48,6 +56,21 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Re-verify on-chain owner matches the principal locked in at verified start.
+    const { getAnonymousSiteActor } = await import("@/lib/ic");
+    const anon = await getAnonymousSiteActor(payload.siteId);
+    const currentOwner = await anon.getOwner();
+    if (currentOwner.toText() !== payload.ownerPrincipal) {
+      return jsonCors(
+        req,
+        {
+          error:
+            "Site owner mismatch vs Connect session — ownership changed or cookie invalid; restart Connect",
+        },
+        { status: 403 },
+      );
+    }
+
     const key = createHash("sha256").update(token).digest("hex");
     if (!consumeOnce(key, payload.exp)) {
       return jsonCors(
@@ -67,17 +90,24 @@ export async function GET(req: NextRequest) {
     }
 
     // Bind on-canister via trusted recorder — owner cannot paste arbitrary account ids.
+    // Never re-enable FE setStripePublic for binding.
     const { getRecorderSiteActor } = await import("@/lib/ic");
     const actor = await getRecorderSiteActor(payload.siteId);
     const bindOut = await actor.bindStripePublic(
       payload.accountId,
       stripePublishableKey,
     );
-    if (typeof bindOut === "string" && bindOut.toLowerCase().includes("not authorized")) {
+    if (
+      typeof bindOut === "string" &&
+      bindOut.toLowerCase().includes("not authorized")
+    ) {
       return jsonCors(req, { error: bindOut }, { status: 403 });
     }
-    if (typeof bindOut === "string" && !bindOut.toLowerCase().includes("bound") && !bindOut.toLowerCase().includes("saved")) {
-      // Still return config to FE for display, but surface bind message
+    if (
+      typeof bindOut === "string" &&
+      !bindOut.toLowerCase().includes("bound") &&
+      !bindOut.toLowerCase().includes("saved")
+    ) {
       console.warn("bindStripePublic:", bindOut);
     }
 
@@ -88,7 +118,6 @@ export async function GET(req: NextRequest) {
       siteId: payload.siteId,
       bound: typeof bindOut === "string" ? bindOut : "ok",
     });
-    // Clear cookie after one successful read
     res.cookies.set(COMPLETION_COOKIE, "", {
       ...completionCookieOptions(0),
       maxAge: 0,

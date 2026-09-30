@@ -60,6 +60,47 @@ function formatTime(ts) {
   }
 }
 
+
+/**
+ * Build Connect owner proof for the backend.
+ * II: DelegationIdentity → inner Ed25519 session JSON + delegation chain.
+ * Local: Ed25519KeyIdentity.toJSON().
+ * Requires AuthClient keyType Ed25519 (see App.jsx).
+ */
+function buildConnectOwnerProof(identity, challenge) {
+  if (!identity) throw new Error("Not signed in");
+  if (!challenge) throw new Error("Missing owner challenge");
+
+  // Internet Identity / DelegationIdentity
+  if (typeof identity.getDelegation === "function") {
+    const inner = identity._inner;
+    if (!inner || typeof inner.toJSON !== "function") {
+      throw new Error(
+        "Connect requires an Ed25519 II session. Sign out and sign in again, then retry."
+      );
+    }
+    let sessionIdentity;
+    try {
+      sessionIdentity = inner.toJSON();
+    } catch (e) {
+      throw new Error(
+        "Could not export II session key for Connect proof. Sign out/in and retry."
+      );
+    }
+    const chain = identity.getDelegation();
+    const delegation =
+      chain && typeof chain.toJSON === "function" ? chain.toJSON() : chain;
+    return { challenge, sessionIdentity, delegation };
+  }
+
+  // Local / raw Ed25519KeyIdentity
+  if (typeof identity.toJSON === "function") {
+    return { challenge, sessionIdentity: identity.toJSON() };
+  }
+
+  throw new Error("Unsupported identity for Stripe Connect owner proof");
+}
+
 /**
  * My Site → Store: format toggle, Stripe Connect (OAuth), product CRUD, share link.
  */
@@ -152,7 +193,7 @@ export default function SiteStore({ identity, siteId }) {
     load();
   }, [load]);
 
-  // After Stripe Connect OAuth return: ?connect=success → fetch result → setStripePublic
+  // After Stripe Connect OAuth return: ?connect=success → fetch result (backend bindStripePublic)
   useEffect(() => {
     if (!identity || !siteId || !CONNECT_ORIGIN) return;
     let params;
@@ -229,21 +270,58 @@ export default function SiteStore({ identity, siteId }) {
       flash("", "Connect backend not configured");
       return;
     }
-    if (!siteId || !ownerPrincipal) {
-      flash("", "Missing site or owner principal.");
+    if (!siteId || !identity) {
+      flash("", "Missing site or sign-in identity.");
       return;
     }
     setBusy(true);
     flash("", "");
     try {
+      // 1) Server-issued challenge bound to this siteId
+      const chRes = await fetch(`${CONNECT_ORIGIN}/api/connect/challenge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ siteId }),
+      });
+      if (!chRes.ok) {
+        let detail = `Connect challenge failed (HTTP ${chRes.status})`;
+        try {
+          const errBody = await chRes.json();
+          if (errBody?.error) detail = errBody.error;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(detail);
+      }
+      const chData = await chRes.json();
+      const challenge = chData?.challenge;
+      if (!challenge) throw new Error("Connect challenge missing token.");
+
+      // 2) Prove II/session control (session key + optional delegation)
+      const proof = buildConnectOwnerProof(identity, challenge);
+
+      // 3) Start OAuth only after backend verifies principal === getOwner
       const res = await fetch(`${CONNECT_ORIGIN}/api/connect/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ siteId, ownerPrincipal }),
+        body: JSON.stringify({
+          siteId,
+          challenge: proof.challenge,
+          sessionIdentity: proof.sessionIdentity,
+          delegation: proof.delegation,
+        }),
       });
       if (!res.ok) {
-        throw new Error(`Connect start failed (HTTP ${res.status})`);
+        let detail = `Connect start failed (HTTP ${res.status})`;
+        try {
+          const errBody = await res.json();
+          if (errBody?.error) detail = errBody.error;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(detail);
       }
       const data = await res.json();
       const url = data?.url || data?.redirectUrl || data?.authorizeUrl;

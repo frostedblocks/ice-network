@@ -1,4 +1,4 @@
-import { Actor, HttpAgent, type ActorSubclass } from "@dfinity/agent";
+import { Actor, HttpAgent, type ActorSubclass, type Identity } from "@dfinity/agent";
 import { IDL } from "@dfinity/candid";
 import { Principal } from "@dfinity/principal";
 import { getEnv } from "./env";
@@ -108,10 +108,14 @@ function assertCanisterId(siteId: string): Principal {
   }
 }
 
-async function makeAgent(authenticated: boolean): Promise<HttpAgent> {
+async function makeAgent(
+  identity?: Identity | null,
+): Promise<HttpAgent> {
   const { icHost } = getEnv();
-  const identity = authenticated ? getBackendIdentity() : undefined;
-  const agent = new HttpAgent({ host: icHost, identity });
+  const agent = new HttpAgent({
+    host: icHost,
+    identity: identity ?? undefined,
+  });
   return agent;
 }
 
@@ -119,7 +123,7 @@ export async function getAnonymousSiteActor(
   siteId: string,
 ): Promise<UserSiteActor> {
   const canisterId = assertCanisterId(siteId);
-  const agent = await makeAgent(false);
+  const agent = await makeAgent(null);
   return Actor.createActor(userSiteIdl as unknown as IDL.InterfaceFactory, {
     agent,
     canisterId,
@@ -130,13 +134,31 @@ export async function getRecorderSiteActor(
   siteId: string,
 ): Promise<UserSiteActor> {
   const canisterId = assertCanisterId(siteId);
-  const agent = await makeAgent(true);
+  const agent = await makeAgent(getBackendIdentity());
   return Actor.createActor(userSiteIdl as unknown as IDL.InterfaceFactory, {
     agent,
     canisterId,
   }) as UserSiteActor;
 }
 
+/** Actor authenticated as an arbitrary Identity (owner II proof). */
+export async function getSiteActorWithIdentity(
+  siteId: string,
+  identity: Identity,
+): Promise<UserSiteActor> {
+  const canisterId = assertCanisterId(siteId);
+  const agent = await makeAgent(identity);
+  return Actor.createActor(userSiteIdl as unknown as IDL.InterfaceFactory, {
+    agent,
+    canisterId,
+  }) as UserSiteActor;
+}
+
+/**
+ * @deprecated Insecure if used alone — client can supply any principal string
+ * that matches public getOwner. Prefer assertOwnerProof in lib/owner-proof.ts.
+ * Kept for secondary checks against a principal already verified via proof.
+ */
 export async function assertSiteOwner(
   siteId: string,
   ownerPrincipal: string,
