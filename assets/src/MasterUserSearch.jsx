@@ -21,9 +21,6 @@ export default function MasterUserSearch({
   /** II principal mismatch: migrate membership from → to */
   const [migrateFrom, setMigrateFrom] = useState("");
   const [migrateTo, setMigrateTo] = useState("");
-  /** Reassign site canister to a different II */
-  const [reassignSite, setReassignSite] = useState("");
-  const [reassignOwner, setReassignOwner] = useState("");
 
   const runSearch = async (e) => {
     e?.preventDefault?.();
@@ -241,7 +238,7 @@ export default function MasterUserSearch({
           Principal mismatch recovery
         </div>
         <p style={{ margin: "0 0 0.55rem", fontSize: "0.75rem", color: "#64748b", lineHeight: 1.4 }}>
-          Copy ICE membership to a new II (no Join fee). Then reassign their site canister if needed.
+          Copy ICE membership to a new II (no Join fee).
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.45rem" }}>
           <input
@@ -284,50 +281,6 @@ export default function MasterUserSearch({
             }}
           >
             Migrate membership
-          </button>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
-          <input
-            type="text"
-            value={reassignSite}
-            onChange={(e) => setReassignSite(e.target.value)}
-            placeholder="Site canister id"
-            style={inputMini}
-          />
-          <input
-            type="text"
-            value={reassignOwner}
-            onChange={(e) => setReassignOwner(e.target.value)}
-            placeholder="New owner II"
-            style={inputMini}
-          />
-          <button
-            type="button"
-            className="ice-btn"
-            disabled={busy || !reassignSite.trim() || !reassignOwner.trim()}
-            onClick={async () => {
-              setBusy(true);
-              setMsg("");
-              setError("");
-              try {
-                const factory = await createFactoryActor(identity);
-                if (!factory.adminReassignSite) {
-                  setError("adminReassignSite not available — redeploy factory.");
-                  return;
-                }
-                const r = await factory.adminReassignSite(
-                  Principal.fromText(reassignSite.trim()),
-                  Principal.fromText(reassignOwner.trim())
-                );
-                setMsg(typeof r === "string" ? r : "Site reassigned.");
-              } catch (e) {
-                setError(e?.message || "Reassign failed");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            Reassign site
           </button>
         </div>
       </div>
