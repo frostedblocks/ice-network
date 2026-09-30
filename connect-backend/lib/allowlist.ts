@@ -29,21 +29,30 @@ function hostFromCustom(domain: string): string | null {
  * - https://{siteId}.icp0.io
  * - https://{siteId}.raw.icp0.io
  * - https://frostedblocks.com (NEXT_PUBLIC_APP_ORIGIN) with publicSiteHash for that site
+ * - ALLOWED_ORIGINS env extras
  */
 export function allowedBases(
   siteId: string,
   domain: DomainStatus | null,
 ): { origins: Set<string> } {
-  const { appOrigin } = getEnv();
+  const { appOrigin, allowedOrigins } = getEnv();
   const origins = new Set<string>();
 
   origins.add(`https://${siteId}.icp0.io`);
   origins.add(`https://${siteId}.raw.icp0.io`);
 
   try {
-    origins.add(new URL(appOrigin).origin);
+    origins.add(normalizeOrigin(new URL(appOrigin)));
   } catch {
     /* ignore */
+  }
+
+  for (const extra of allowedOrigins) {
+    try {
+      origins.add(normalizeOrigin(new URL(extra)));
+    } catch {
+      /* ignore */
+    }
   }
 
   if (domain?.customDomain) {
@@ -68,15 +77,16 @@ function isPathOnly(raw: string): boolean {
 }
 
 /**
- * Resolve success/cancel URL from optional path or absolute URL.
- * Rejects open redirects. Frostedblocks URLs must target this site's publicSiteHash
- * (or the site root hash).
+ * Resolve success/cancel URL from optional relative path (preferred) or absolute URL.
+ * Relative paths are rooted at the allowlisted request Origin when present,
+ * else custom domain / icp0.io. Never trusts arbitrary redirect hosts.
  */
 export function resolveAllowlistedUrl(
   siteId: string,
   domain: DomainStatus | null,
   pathOrUrl: string | undefined,
   kind: "success" | "cancel",
+  requestOrigin?: string | null,
 ): string {
   const { origins } = allowedBases(siteId, domain);
   const { appOrigin } = getEnv();
@@ -97,13 +107,30 @@ export function resolveAllowlistedUrl(
 
   const raw = pathOrUrl.trim();
 
-  // Relative path → prefer custom domain if set, else icp0.io
+  // Relative path → prefer allowlisted request Origin, else custom domain, else icp0.io
   if (isPathOnly(raw)) {
-    let baseOrigin = `https://${siteId}.icp0.io`;
-    const host = domain?.customDomain
-      ? hostFromCustom(domain.customDomain)
-      : null;
-    if (host) baseOrigin = `https://${host}`;
+    let baseOrigin: string | null = null;
+
+    if (requestOrigin) {
+      try {
+        const ro = new URL(requestOrigin);
+        if (ro.protocol === "https:" || ro.hostname === "localhost") {
+          if (origins.has(normalizeOrigin(ro))) {
+            baseOrigin = ro.origin;
+          }
+        }
+      } catch {
+        /* ignore bad Origin */
+      }
+    }
+
+    if (!baseOrigin) {
+      const host = domain?.customDomain
+        ? hostFromCustom(domain.customDomain)
+        : null;
+      baseOrigin = host ? `https://${host}` : `https://${siteId}.icp0.io`;
+    }
+
     const u = new URL(raw, baseOrigin);
     if (!origins.has(normalizeOrigin(u))) {
       throw new Error("success/cancel path resolved outside allowlist");

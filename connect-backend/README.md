@@ -114,16 +114,24 @@ Also deploy **assets** so SiteStore sends owner proof and AuthClient uses Ed2551
 4. FE detects `connect=success` and `fetch(CONNECT_PUBLIC_ORIGIN + '/api/connect/result?siteId=' + siteId, { credentials: 'include' })`.
 5. Backend trusted recorder binds via `bindStripePublic` — **never** FE `setStripePublic`, never paste arbitrary account ids.
 
-## Checkout allowlist
+## Checkout allowlist + CORS (custom-domain Buy)
 
-`successPath` / `cancelPath` may be absolute `https` URLs or paths. Allowed bases only:
+PublicSite sends **relative** `successPath` / `cancelPath` only (not absolute `successUrl` / `cancelUrl`).
+The backend builds absolute Stripe return URLs from the **allowlisted request `Origin`**.
 
-- Custom domain / `publicUrl` from `getDomainStatus` (https)
-- `https://{siteId}.icp0.io/`
-- `https://{siteId}.raw.icp0.io/`
-- `NEXT_PUBLIC_APP_ORIGIN` with `#/site/{siteId}` hash **or** `?site={siteId}`
+Allowed bases only:
 
-Open redirects are rejected.
+- Request `Origin` when it matches one of:
+  - `NEXT_PUBLIC_APP_ORIGIN` (frostedblocks.com)
+  - `https://{siteId}.icp0.io` / `https://{siteId}.raw.icp0.io` (and other `*.icp0.io` / `*.ic0.app` for CORS)
+  - Custom domain / `publicUrl` from canister `getDomainStatus` (https)
+  - Extra origins in env `ALLOWED_ORIGINS` (comma-separated)
+- Absolute `https` values in `successPath`/`cancelPath` are still accepted only if their origin is in that allowlist (legacy); FE must not send `successUrl`/`cancelUrl`.
+- On frostedblocks.com, return URLs must include this site (`#/site/{siteId}` or `?site={siteId}`).
+
+**CORS:** Checkout OPTIONS/POST allow brand + ICP asset origins + `ALLOWED_ORIGINS`. For a site custom domain, pass `?siteId=` on the checkout URL so preflight can load `getDomainStatus` and reflect that Origin. Connect owner routes remain usable from brand / ICP / `ALLOWED_ORIGINS`.
+
+Open redirects to arbitrary hosts are rejected.
 
 ## Security notes
 
@@ -133,7 +141,7 @@ Open redirects are rejected.
 - **Express OAuth only** — not Standard Connect; no “paste any account id” path in this backend.
 - OAuth `state` is HMAC-signed with expiry; completion cookie is httpOnly, `SameSite=None; Secure`, short-lived, cleared after one successful `result` read; result re-checks `getOwner`.
 - Webhook signature verified before any IC call; receipts store `buyerRef = session.id` only (no email/name).
-- CORS for credentialed connect / checkout is restricted to `NEXT_PUBLIC_APP_ORIGIN`.
+- CORS: brand (`NEXT_PUBLIC_APP_ORIGIN`) + `*.icp0.io` / `*.ic0.app` + `ALLOWED_ORIGINS`; checkout also allows the site custom domain from `getDomainStatus` when `?siteId=` is present. Never reflects arbitrary Origins.
 
 ## Local dev
 

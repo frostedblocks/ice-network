@@ -13,6 +13,25 @@ function optional(name: string): string | undefined {
   return v || undefined;
 }
 
+/** Parse comma-separated https origins (trailing slash stripped). */
+function parseAllowedOrigins(raw: string | undefined): string[] {
+  if (!raw) return [];
+  const out: string[] = [];
+  for (const part of raw.split(",")) {
+    const t = part.trim();
+    if (!t) continue;
+    try {
+      const u = new URL(t);
+      if (u.protocol === "https:" || u.hostname === "localhost") {
+        out.push(u.origin);
+      }
+    } catch {
+      /* skip invalid */
+    }
+  }
+  return out;
+}
+
 export function getEnv() {
   return {
     stripeSecretKey: required("STRIPE_SECRET_KEY"),
@@ -26,6 +45,12 @@ export function getEnv() {
     icHost: optional("IC_HOST") || "https://icp-api.io",
     /** MVP platform fee percent (0 = omit application_fee_amount). */
     platformFeeBps: Number(optional("CONNECT_PLATFORM_FEE_BPS") || "0"),
+    /**
+     * Extra browser origins allowed for CORS (and checkout return bases).
+     * Comma-separated absolute origins, e.g. https://shop.example.com,https://staging.frostedblocks.com
+     * Custom domains are also allowed per-request when they match canister getDomainStatus.
+     */
+    allowedOrigins: parseAllowedOrigins(optional("ALLOWED_ORIGINS")),
   };
 }
 
