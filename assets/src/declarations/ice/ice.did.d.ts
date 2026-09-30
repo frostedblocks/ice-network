@@ -221,7 +221,7 @@ export interface _SERVICE {
   'ensurePaymentsLive' : ActorMethod<[], boolean>,
   'ensureRegistrationFee2Icp' : ActorMethod<[], string>,
   /**
-   * / Apply current first-login fee migration (2 ICP). Master can still change via adminSetRegistrationFee.
+   * / Status only — Join fee permanently off (fee-at-mint). Cannot re-enable via adminSetRegistrationFee.
    */
   'ensureRegistrationFee5Icp' : ActorMethod<[], string>,
   'fetchNnsDepositBalance' : ActorMethod<[Principal], bigint>,
