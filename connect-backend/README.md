@@ -13,7 +13,7 @@ Deploy on Vercel. Owners connect payouts via Express OAuth; buyers pay via Check
 | `GET /api/connect/callback` | Stripe OAuth return. Verifies state, exchanges `code` → connected account id, sets httpOnly completion cookie (siteId + ownerPrincipal + accountId), redirects to `NEXT_PUBLIC_APP_ORIGIN?connect=success&site=…`. |
 | `GET /api/connect/result?siteId=` | Requires completion cookie. Re-checks canister `getOwner` matches cookie owner; then **trusted recorder** calls `bindStripePublic`. Returns `{ accountId, publishableKey }` once. **Does not** use FE `setStripePublic`. |
 | `POST /api/checkout/session` | Body `{ siteId, productId, successPath?, cancelPath? }` **only**. Reads `getProduct` + `getStripePublic` from canister. Creates Checkout with `stripeAccount`. **Does not trust client amounts.** |
-| `POST /api/webhooks/stripe` | Verifies signature. On `checkout.session.completed`, calls `recordReceipt` with backend IC identity. |
+| `POST /api/webhooks/stripe` | Verifies signature. On `checkout.session.completed`, uses Stripe `amount_total` only (no metadata amount fallback), requires `event.account` to match site `getStripePublic.accountId`, then calls `recordReceipt` with backend IC identity. |
 
 MVP **platform fee = 0%** (`application_fee_amount` omitted unless `CONNECT_PLATFORM_FEE_BPS` &gt; 0).
 
@@ -56,7 +56,7 @@ Session key material is sent only to this trusted backend over HTTPS (already ho
 3. Add OAuth redirect URI: `{CONNECT_PUBLIC_ORIGIN}/api/connect/callback`.
 4. Create a webhook endpoint → `{CONNECT_PUBLIC_ORIGIN}/api/webhooks/stripe`.
    - Subscribe to `checkout.session.completed`.
-   - For **direct charges** (`stripeAccount` on Session), enable listening on **Connected accounts** (Connect webhook) so platform receives those events.
+   - For **direct charges** (`stripeAccount` on Session), enable listening on **Connected accounts** (Connect webhook) so platform receives those events. The handler **requires** `event.account` and fails closed if it does not match the site canister’s bound Stripe `accountId`.
 
 ### 2. IC identity (trusted recorder)
 
