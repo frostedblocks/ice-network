@@ -541,7 +541,7 @@ export default function App() {
           );
         } else if (/derivation|alternative.origin/i.test(msg)) {
           setBootError(
-            `Shared-login setup failed (${msg}). Use ${MASTER_APP_URL} (canister URL) instead.`
+            `Shared-login setup failed (${msg}). Use ${MASTER_APP_URL} instead.`
           );
         } else {
           setBootError(`Sign in failed (${msg}).`);
@@ -628,7 +628,7 @@ export default function App() {
         initialPage={pageFromHash}
         customDomainMode
         onLeave={() => {
-          window.location.href = "https://6hhqv-baaaa-aaaan-q6mxq-cai.icp0.io/";
+          window.location.href = MASTER_APP_URL;
         }}
       />
     );
@@ -666,7 +666,7 @@ export default function App() {
               registered to an ICE personal site yet.
             </p>
             <a
-              href="https://6hhqv-baaaa-aaaan-q6mxq-cai.icp0.io/"
+              href={MASTER_APP_URL}
               className="ice-btn-primary"
               style={{ display: "inline-block", textDecoration: "none", marginTop: "0.5rem" }}
             >
@@ -706,8 +706,7 @@ export default function App() {
             <strong>Sign in</strong>
             <div style={{ marginTop: "0.35rem" }}>{bootError}</div>
             <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#fca5a5" }}>
-              Correct app URL: https://6hhqv-baaaa-aaaan-q6mxq-cai.icp0.io/ (must include the{" "}
-              <strong>h</strong> in https)
+              Use https://frostedblocks.com (must include the <strong>h</strong> in https)
             </div>
           </div>
         )}

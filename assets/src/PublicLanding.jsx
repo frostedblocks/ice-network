@@ -531,16 +531,15 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
             </li>
             <li>
               <strong style={styles.trustStrong}>Your data:</strong> Public posts are visible to
-              everyone. Account and messaging data live on the network; we don’t sell an ad profile
-              of you.
+              everyone. Account data lives on the network; we don’t sell an ad profile of you.
             </li>
             <li>
               <strong style={styles.trustStrong}>Moderation:</strong> Reported posts can be reviewed
               and hidden when needed.
             </li>
             <li>
-              <strong style={styles.trustStrong}>Support:</strong> Use Message the founder on this
-              page for a short private note.
+              <strong style={styles.trustStrong}>Support:</strong> Reach out via the partners /
+              resources links below, or email support through frostedblocks.com.
             </li>
           </ul>
         </section>

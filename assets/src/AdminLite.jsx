@@ -135,12 +135,12 @@ export default function AdminLite({ actor, identity, onBack }) {
           </p>
         )}
         <p style={{ fontSize: "0.85rem", lineHeight: 1.45 }}>
-          Prefer the canonical app:{" "}
+          Prefer the app door:{" "}
           <a
-            href="https://6hhqv-baaaa-aaaan-q6mxq-cai.icp0.io/#/admin/lite"
+            href="https://frostedblocks.com/#/admin/lite"
             style={{ color: "#7dd3fc" }}
           >
-            6hhqv-….icp0.io/#/admin/lite
+            frostedblocks.com/#/admin/lite
           </a>
         </p>
         {err && <p style={{ color: "#f87171", fontSize: "0.85rem" }}>{err}</p>}
