@@ -1,5 +1,7 @@
 # I.C.E.
 
+Stripe Connect Factory + assets wiring: **[CONNECT_OPS.md](./CONNECT_OPS.md)**.
+
 Decentralized social platform on the **Internet Computer**.
 
 ## Test on Ubuntu (local ICP replica)

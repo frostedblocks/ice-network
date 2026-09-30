@@ -74,11 +74,22 @@ npm install
 npx tsx scripts/print-principal.ts
 ```
 
-### 3. Factory: `adminSetConnectBackend`
+### 3. Factory: `adminSetConnectBackend` + seed existing sites
 
-After deploy, call Factory **`adminSetConnectBackend(principal)`** with this backend’s principal so new mints `seedTrustedRecorder`. For existing store sites, owner/factory must `addTrustedRecorder` / `seedTrustedRecorder` the same principal or `recordReceipt` / `bindStripePublic` will fail.
+After deploy, call Factory **`adminSetConnectBackend(principal)`** with this backend’s principal so **new** mints `seedTrustedRecorder` at bootstrap. Existing store sites stay unseeded until you call **`adminSeedTrustedRecorderOnSite(site)`** (or they will fail `recordReceipt` / `bindStripePublic`).
 
-> If `adminSetConnectBackend` is not yet live on your Factory build, seed recorders manually until the admin API is deployed.
+Exact dfx/candid steps, site listing, and assets `VITE_CONNECT_API_ORIGIN`: see **`docs/CONNECT_OPS.md`**.
+
+```bash
+# Factory owner identity on Heavy — replace placeholders
+dfx canister --network ic call factory adminSetConnectBackend \
+  '(principal "CONNECT_BACKEND_PRINCIPAL")'
+dfx canister --network ic call factory getConnectBackend --query
+dfx canister --network ic call factory adminSeedTrustedRecorderOnSite \
+  '(principal "SITE_ID")'
+```
+
+Also rebuild **assets** with `VITE_CONNECT_API_ORIGIN=<CONNECT_PUBLIC_ORIGIN>` or the UI shows Connect not configured.
 
 ### 4. Vercel env
 

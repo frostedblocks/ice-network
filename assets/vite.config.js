@@ -81,6 +81,16 @@ function canisterIdsPlugin() {
         console.log(`[vite] DFX_NETWORK=${network} ice=${ice || "?"}`);
       }
 
+      const connectOrigin =
+        process.env.VITE_CONNECT_API_ORIGIN || env.VITE_CONNECT_API_ORIGIN || "";
+      if (network === "ic" && !String(connectOrigin).trim()) {
+        console.warn(
+          "[vite] Missing VITE_CONNECT_API_ORIGIN for mainnet build. Store Connect/Buy will show a setup message. Set it in assets/.env.local or the environment (see docs/CONNECT_OPS.md)."
+        );
+      } else if (String(connectOrigin).trim()) {
+        console.log(`[vite] VITE_CONNECT_API_ORIGIN=${String(connectOrigin).replace(/\/$/, "")}`);
+      }
+
       return { define };
     },
   };
