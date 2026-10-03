@@ -1,93 +1,32 @@
-# I.C.E.
+# ICE Network docs
 
-Stripe Connect Factory + assets wiring: **[CONNECT_OPS.md](./CONNECT_OPS.md)**.
+Internal and ops notes for **ICE Network** ([frostedblocks.com](https://frostedblocks.com)).
 
-Decentralized social platform on the **Internet Computer**.
+> **GitHub is backup / source only.** Live product runs on ICP canisters (and Connect on Vercel when used). See [GITHUB_VS_LIVE.md](./GITHUB_VS_LIVE.md).
 
-## Test on Ubuntu (local ICP replica)
+## Current product (short)
 
-### 1. Install tools (once)
+- Free username via Internet Identity; public feed is free
+- Join fee permanently off
+- Optional personal site later: one-time **hosting fee of 10 ICP** at mint (2.7 ICP canister cycles / 7.3 ICP network ops) — hosting, not a token sale
+- No in-app tokens or token packs
+- **ICE Lite** is a separate product and is enough on its own; Network is the optional on-chain upgrade
 
-```bash
-# Node.js 20+
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
+## Index
 
-# DFX (Internet Computer SDK)
-sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
-# then restart the terminal, or:
-source "$HOME/.local/share/dfx/env"
-```
+| Doc | Purpose |
+|-----|---------|
+| [GITHUB_VS_LIVE.md](./GITHUB_VS_LIVE.md) | GitHub ≠ live |
+| [LAUNCH.md](./LAUNCH.md) | Launch / smoke notes (keep aligned with product) |
+| [CONNECT_OPS.md](./CONNECT_OPS.md) | Stripe Connect wiring (ops; do not skip gates) |
+| [ops-llc-gate.md](./ops-llc-gate.md) | When to form a Delaware LLC |
+| [ops-connect-go-live.md](./ops-connect-go-live.md) | Gates before relying on Connect / tips / referrals |
+| [ugc-posting-rules.md](./ugc-posting-rules.md) | UGC / likeness rules |
+| [DOMAIN.md](./DOMAIN.md) | Custom domains |
+| Other `*.md` in this folder | Historical / canister-specific notes — prefer root README + Terms if anything conflicts |
 
-### 2. Clone and enter the project
+## Local development
 
-```bash
-git clone https://github.com/frostedblocks/ScaleSpace.git
-cd ScaleSpace
-```
+Use the root repo layout (`ice/`, `assets/`, `factory/`, …) and `dfx` against a local replica or mainnet as appropriate. Prefer the root [README.md](../README.md) over any older ScaleSpace clone instructions.
 
-### 3. Start local replica + deploy canisters
-
-```bash
-dfx start --background
-dfx deploy ice
-dfx deploy messaging
-# or simply:
-dfx deploy
-```
-
-This builds Motoko, installs canisters, and generates JS declarations under `frontend/src/declarations/`.
-
-**Note:** Prefer **dfx 0.29.2** on WSL if 0.32+ fails with PocketIC errors (`dfxvm default 0.29.2`).
-
-### 4. Run the frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open the URL Vite prints (usually `http://localhost:3000`).
-
-- **Local:** use **Continue (local test login)** to exercise the app.
-- **Mainnet:** login with **Internet Identity** → claim master profile on the Profile page (first real user).
-
-### 5. Useful commands
-
-```bash
-# Canister IDs
-dfx canister id ice
-dfx canister id messaging
-
-# Rebuild after Motoko changes
-dfx deploy ice
-
-# Stop local network
-dfx stop
-```
-
-## Deploy to mainnet (IC)
-
-See **[LAUNCH.md](./LAUNCH.md)** for the full checklist (cycles, identity, claim master).
-
-```bash
-export DFX_WARNING=-mainnet_plaintext_identity
-bash scripts/deploy-mainnet.sh
-# App: https://<assets-id>.icp0.io/
-```
-
-## Project layout
-
-```
-backend/main.mo      → ice canister (posts, tokens, master tools)
-messaging/main.mo    → messaging canister
-frontend/            → React + Vite UI
-dfx.json             → canister config
-```
-
-## Notes
-
-- **Payments** start in test mode (free token subscribe). Enable live ICP pricing from Master controls when ready.
-- Image upload is deferred; avatar/image fields accept URLs only for now.
-- Master profile: first logged-in user can **Claim Master Profile** on the Profile page (use real II on mainnet).
+Do **not** re-enable removed token packs. Do **not** treat “payments test mode” docs as current product copy.

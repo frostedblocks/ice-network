@@ -3,8 +3,6 @@ import { createAnonymousIceActor } from "./actors";
 import Username from "./Username";
 import TimeAgo, { activityBucket } from "./TimeAgo";
 import { DEFAULT_CATEGORY, categoryStyle } from "./categories";
-import LedgerAffiliateAd from "./LedgerAffiliateAd";
-import BinanceUsAd from "./BinanceUsAd";
 
 
 const POLL_MS = 50_000;
@@ -277,20 +275,19 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
               <div style={styles.accentLine} />
               <p style={styles.eyebrow}>Free username on ICE</p>
               <h1 style={styles.h1}>
-                <span style={styles.h1Grad}>Post on</span>
-                <span style={styles.h1Sub}>ICE</span>
+                <span style={styles.h1Grad}>Post without a wallet.</span>
               </h1>
               <p style={styles.tagline}>
-                Create a free username to post and browse the feed. A personal site is optional —
-                ICP site / canister purchase fee (10 ICP) at mint (2.7 ICP canister cycles / 7.3 ICP network ops).
+                A public feed on the Internet Computer. Create a free username in about a minute. A
+                personal site is optional, later.
               </p>
 
               <div style={styles.ctaRowTop}>
-                <button type="button" onClick={exploreFeed} style={styles.primaryBtn}>
-                  Explore the public feed
-                </button>
-                <button type="button" onClick={createAccount} style={styles.secondaryBtn}>
+                <button type="button" onClick={createAccount} style={styles.primaryBtn}>
                   {isLocal ? "Continue (local)" : "Create your account"}
+                </button>
+                <button type="button" onClick={exploreFeed} style={styles.secondaryBtn}>
+                  Explore the public feed
                 </button>
               </div>
 
@@ -305,7 +302,7 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
                 </div>
                 <div style={styles.featureCard}>
                   <div style={styles.featureTitle}>Optional site</div>
-                  <div style={styles.featureText}>Mint a personal site with an ICP site / canister purchase fee (10 ICP) when you want one.</div>
+                  <div style={styles.featureText}>Add a personal site on the Internet Computer when you want one — not required to start.</div>
                 </div>
                 <div style={styles.featureCard}>
                   <div style={styles.featureTitle}>ICP tips</div>
@@ -324,7 +321,7 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
                   <li>No crypto wallet needed to start.</li>
                   <li>Sign-in usually takes about a minute (passkey, Face ID, or security key).</li>
                   <li>You recover access through Internet Identity on your devices — not email/password.</li>
-                  <li>Browsing the public feed is free. A username is free. Minting a site is a separate ICP site / canister purchase fee (10 ICP).</li>
+                  <li>Browsing the public feed is free. A username is free. A personal site later is optional hosting: one-time 10 ICP at mint (2.7 ICP canister cycles / 7.3 ICP network ops) — a hosting fee, not a token sale.</li>
                   <li>Public posts are visible to everyone.</li>
                 </ul>
                 <button type="button" onClick={createAccount} style={styles.primaryBtnCompact}>
@@ -538,27 +535,18 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
               and hidden when needed.
             </li>
             <li>
-              <strong style={styles.trustStrong}>Support:</strong> Reach out via the partners /
-              resources links below, or email support through frostedblocks.com.
+              <strong style={styles.trustStrong}>Support:</strong>{" "}
+              <a href="mailto:legal@frostedblocks.com" style={styles.footerLink}>
+                legal@frostedblocks.com
+              </a>
+              {" · "}
+              <a href="/partners" style={styles.footerLink}>
+                Partners / resources
+              </a>
+              {" "}
+              (optional — not required to create an account).
             </li>
           </ul>
-        </section>
-
-        <section style={styles.partnersBlock} aria-label="Partners">
-          <div style={styles.partnersHead}>
-            <h2 style={styles.partnersTitle}>Partners</h2>
-            <a href="/partners" style={styles.partnersLink}>
-              Resources →
-            </a>
-          </div>
-          <p style={styles.disclosure}>
-            Affiliate disclosure: some partner links may earn ICE/Frosted Blocks a commission at no
-            extra cost to you. These are optional resources — not required to use ICE.
-          </p>
-          <div style={styles.adGrid}>
-            <BinanceUsAd />
-            <LedgerAffiliateAd />
-          </div>
         </section>
 
         <footer style={styles.footer}>

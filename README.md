@@ -2,7 +2,7 @@
 
 On-chain social network and personal sites for **ICE Network**, operated as a trade name of **Walter Wood** (Delaware sole proprietor). This repository is the ICP stack behind [frostedblocks.com](https://frostedblocks.com).
 
-Lite (Web2 door) is a **separate** product/repo: [lite.frostedblocks.com](https://lite.frostedblocks.com).
+**ICE Lite** ([lite.frostedblocks.com](https://lite.frostedblocks.com), separate repo) is enough on its own: email/Google signup, free social, no wallet, no tokens. **ICE Network** is optional if you want an on-chain username and, later, a personal site on the Internet Computer. Do not treat Lite as a required funnel into Network.
 
 ## GitHub is backup — not live
 
@@ -20,7 +20,7 @@ To update the live product: **build from this repo, then deploy** to the caniste
 ## What this product is
 
 - Free **username** on ICE (Internet Identity) to post and browse the feed
-- Optional **ICP site / canister purchase fee (10 ICP)** — a one-time on-chain fee to mint a personal site canister (not a token pack, not equity, not a reward balance)
+- Optional personal site later — one-time **hosting fee of 10 ICP** at mint (2.7 ICP canister cycles / 7.3 ICP network ops); not a token, not equity
 - Optional features when enabled in product: ICP tips, referrals, personal-site Store with Stripe Connect Express (seller payouts; Frostblocks does not hold card payments)
 - Photos and site content live on personal **user_site** canisters
 
