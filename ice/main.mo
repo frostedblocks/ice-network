@@ -421,7 +421,7 @@ persistent actor Ice {
     }
   };
 
-  /// Public: deposit destination for NNS-paid fees (registration / token packs).
+  /// Public: deposit destination for NNS-paid fees (legacy registration path; token packs removed).
   public query func getNnsDepositInfo(user : Principal) : async {
     owner : Principal;
     subaccountHex : Text;
@@ -1442,8 +1442,8 @@ persistent actor Ice {
     if (not isMaster(msg.caller)) { return "Not authorized" };
     paymentsEnabledFixV1 := true; // don't auto-override master choice later
     paymentsEnabled := enabled;
-    if (enabled) { "Token pack payments enabled" }
-    else { "Token pack payments disabled" }
+    if (enabled) { "ICP action-fee payments flag enabled (packs removed — do not market as tokens)" }
+    else { "ICP action-fee payments flag disabled (packs removed)" }
   };
 
   /// Join fee is permanently off (fee-at-mint). Rejects any attempt to enable.

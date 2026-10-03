@@ -1,5 +1,7 @@
 # Stripe Connect ops runbook (Factory + assets)
 
+**Gates (do not skip):** Form a Delaware LLC before Connect payouts at scale or paid ads at scale — see `docs/ops-llc-gate.md`. Before relying on Connect/tips/referrals in production, complete `docs/ops-connect-go-live.md`. Do **not** re-enable removed in-app tokens/packs.
+
 **Fix 3 / ops gap:** Factory `connectBackendPrincipal` stays `null` until an owner calls `adminSetConnectBackend`. Existing user sites are **not** re-seeded automatically — call `adminSeedTrustedRecorderOnSite` per site. Assets builds need `VITE_CONNECT_API_ORIGIN` or the UI reports Connect is not configured.
 
 Do **not** run these mainnet calls from the agent box. Use Heavy (or another machine with `dfx` + the Factory owner identity).
