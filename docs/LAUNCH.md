@@ -36,7 +36,7 @@ Already set:
 - Local test login is **disabled** when `DFX_NETWORK=ic`.
 - Vite bakes canister IDs into the production build.
 - Asset headers via `frontend/.ic-assets.json`.
-- Payments stay **off** by default (test subscribe free) until you enable them as master.
+- Join/username remains **free**. Optional personal site uses the **ICP site / canister purchase fee (10 ICP)** via Factory mint. There are **no** in-app tokens or token packs.
 
 ### 3. Claim master on live
 
@@ -99,8 +99,8 @@ dfx canister id assets --network ic
 1. Open the assets URL in a browser.
 2. **Login with Internet Identity**.
 3. **Claim Master Profile** immediately.
-4. Smoke-test: post, like, comment, message, get tokens (test packs while payments are off).
-5. When ready for real ICP: Profile master controls → enable payments.
+4. Smoke-test: post, like, comment; confirm free Join; optionally mint a site with the **ICP site / canister purchase fee (10 ICP)**.
+5. Do **not** re-enable removed in-app tokens/packs. Tips / Store Connect are separate optional features — see `docs/ops-connect-go-live.md` before relying on them in production.
 
 ### Useful commands
 
@@ -127,13 +127,13 @@ dfx deploy assets --network ic
 
 ---
 
-## Soft-launch defaults (current)
+## Product fee facts (current)
 
 | Setting | Value |
 |--------|--------|
-| Payments | Off (free test token packs) |
-| Messaging fee | Free while payments off |
-| Starter tokens | 50 for new accounts |
-| Master grant on claim | 1000 tokens |
+| Username / Join | Free (Internet Identity) |
+| Personal site mint | **ICP site / canister purchase fee (10 ICP)** — one-time on-chain fee to deploy a site canister (not a token pack, not equity) |
+| In-app tokens / packs | **Removed** — do not re-enable |
+| ICP tips / referrals / Stripe Connect Store | Optional product features when wired; no earnings guarantee |
 
-Turn on payments only when you are ready to receive ICP and confirm purchases.
+See `docs/ops-llc-gate.md` and `docs/ops-connect-go-live.md` before scaling Connect or paid distribution.
