@@ -282,7 +282,7 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
               </h1>
               <p style={styles.tagline}>
                 Create a free username to post and browse the feed. A personal site is optional —
-                10 ICP at mint (2.7 ICP canister cycles / 7.3 ICP network ops).
+                ICP site / canister purchase fee (10 ICP) at mint (2.7 ICP canister cycles / 7.3 ICP network ops).
               </p>
 
               <div style={styles.ctaRowTop}>
@@ -305,7 +305,7 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
                 </div>
                 <div style={styles.featureCard}>
                   <div style={styles.featureTitle}>Optional site</div>
-                  <div style={styles.featureText}>Mint a personal site for 10 ICP when you want one.</div>
+                  <div style={styles.featureText}>Mint a personal site with an ICP site / canister purchase fee (10 ICP) when you want one.</div>
                 </div>
                 <div style={styles.featureCard}>
                   <div style={styles.featureTitle}>ICP tips</div>
@@ -324,7 +324,7 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
                   <li>No crypto wallet needed to start.</li>
                   <li>Sign-in usually takes about a minute (passkey, Face ID, or security key).</li>
                   <li>You recover access through Internet Identity on your devices — not email/password.</li>
-                  <li>Browsing the public feed is free. A username is free. Minting a site is a separate 10 ICP step.</li>
+                  <li>Browsing the public feed is free. A username is free. Minting a site is a separate ICP site / canister purchase fee (10 ICP).</li>
                   <li>Public posts are visible to everyone.</li>
                 </ul>
                 <button type="button" onClick={createAccount} style={styles.primaryBtnCompact}>
@@ -577,6 +577,14 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
             {" · "}
             <a href="/partners" style={styles.footerLink}>
               Partners
+            </a>
+            {" · "}
+            <a href="/terms" style={styles.footerLink}>
+              Terms
+            </a>
+            {" · "}
+            <a href="/privacy" style={styles.footerLink}>
+              Privacy
             </a>
           </p>
         </footer>

@@ -462,10 +462,11 @@ export async function approveRegistrationPayment(
 }
 
 /**
- * Approve token pack purchase amount.
+ * @deprecated In-app token packs are removed from product. Kept only if a legacy caller still imports it.
+ * Prefer site mint / factory fee helpers — not packs.
  */
 export async function approveTokenPackPayment(identity, iceCanisterId, priceE8s) {
-  return approveIcpSpend(identity, iceCanisterId, priceE8s, "token pack");
+  return approveIcpSpend(identity, iceCanisterId, priceE8s, "legacy-removed-token-pack");
 }
 
 /**

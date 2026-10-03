@@ -8,7 +8,7 @@ Prioritized tickets from the 10-risk review. **P0/P1 = ship first.**
 
 ### T1 — Payment atomicity & ICP refunds *(P1)*
 **Risk:** #1 ICP charged, action fails  
-**Scope:** Factory `detach` / `relink` / `topUpCycles`; pattern for ICE packs  
+**Scope:** Factory `detach` / `relink` / `topUpCycles` (historical note: in-app token packs are removed from product)  
 **Work:**
 - [x] `refundIcp(to, amountE8s)` on Factory (icrc1_transfer back to user)
 - [x] Validate fully **before** charge (already true for detach/relink gates)

@@ -77,7 +77,22 @@
     "enable_aliasing": true
   },
   {
+    "match": "terms.html",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate"
+    },
+    "enable_aliasing": true
+  },
+  {
+    "match": "privacy.html",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate"
+    },
+    "enable_aliasing": true
+  },
+  {
     "match": "partners.html",
+
     "headers": {
       "Cache-Control": "public, max-age=0, must-revalidate"
     },
