@@ -561,6 +561,8 @@ persistent actor Ice {
   private stable var price400E8s : Nat = 18_000_000; // pack 2
   private stable var price600E8s : Nat = 25_000_000; // pack 3
   private stable var paymentsEnabled : Bool = true;
+  /// Master gate: Store / Connect commerce UI (default off until LLC + payouts ready).
+  private stable var storeCommerceEnabled : Bool = false;
   private stable var totalIcpReceivedE8s : Nat = 0;
   // One-time: enable token-pack payments if they were left off from pre-launch
   private stable var paymentsEnabledFixV1 : Bool = false;
@@ -1302,6 +1304,16 @@ persistent actor Ice {
   };
 
   public query func isPaymentsEnabled() : async Bool { paymentsEnabled };
+
+  public query func isStoreCommerceEnabled() : async Bool { storeCommerceEnabled };
+
+  public shared(msg) func adminSetStoreCommerceEnabled(enabled : Bool) : async Text {
+    if (not isMaster(msg.caller)) { return "Not authorized" };
+    storeCommerceEnabled := enabled;
+    if (enabled) { "Store commerce enabled (My Site Store + public Buy)" }
+    else { "Store commerce hidden (default until LLC / seller payouts ready)" }
+  };
+
 
   public query func getEconomyConfig() : async {
     registrationFeeEnabled : Bool;

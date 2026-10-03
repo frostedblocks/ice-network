@@ -3,9 +3,12 @@ import { Principal } from "@dfinity/principal";
 import {
   createFactoryActor,
   createUserSiteActor,
+  createIceActor,
+  createAnonymousIceActor,
   FACTORY_CANISTER_ID,
   publicSiteHash,
 } from "./actors";
+import { fetchStoreCommerceEnabled } from "./storeCommerce";
 import { formatIcp } from "./icpLedger";
 import SiteCycleGauge, { SITE_LOW_CYCLES_THRESHOLD } from "./SiteCycleGauge";
 import SiteControllers from "./SiteControllers";
@@ -60,15 +63,40 @@ export default function MySite({
   const [reattachEligible, setReattachEligible] = useState(false);
   const [siteCyclesLow, setSiteCyclesLow] = useState(false);
   const [siteCyclesBal, setSiteCyclesBal] = useState(null);
-  const [tab, setTab] = useState(() => {
-    try {
-      const params = new URLSearchParams(window.location.search || "");
-      if (params.get("connect") === "success") return "store";
-    } catch (_) {}
-    return "overview";
-  });
+  const [storeCommerceOn, setStoreCommerceOn] = useState(false);
+  const [tab, setTab] = useState("overview");
 
   const me = identity ? identity.getPrincipal() : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const ice = identity
+          ? await createIceActor(identity)
+          : await createAnonymousIceActor();
+        const on = await fetchStoreCommerceEnabled(ice);
+        if (cancelled) return;
+        setStoreCommerceOn(!!on);
+        if (on) {
+          try {
+            const params = new URLSearchParams(window.location.search || "");
+            if (params.get("connect") === "success") setTab("store");
+          } catch (_) {}
+        } else {
+          setTab((t) => (t === "store" ? "overview" : t));
+        }
+      } catch (e) {
+        console.warn(e);
+        if (!cancelled) setStoreCommerceOn(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [identity]);
+
+  const visibleTabs = storeCommerceOn ? TABS : TABS.filter((t) => t.id !== "store");
 
   const onNnsFeeReady = useCallback((r) => setNnsFeeReady(!!r), []);
   const onMintFeeReady = useCallback((r) => setMintFeeReady(!!r), []);
@@ -531,7 +559,7 @@ export default function MySite({
           </div>
 
           <nav className="ice-tabs" aria-label="Site sections">
-            {TABS.map((t) => (
+            {visibleTabs.map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -837,7 +865,7 @@ export default function MySite({
             </section>
           )}
 
-          {tab === "store" && siteId && identity && (
+          {storeCommerceOn && tab === "store" && siteId && identity && (
             <section className="ice-section">
               <SiteStore identity={identity} siteId={siteId} />
             </section>

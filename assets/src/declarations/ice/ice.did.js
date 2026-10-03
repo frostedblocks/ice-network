@@ -330,6 +330,8 @@ export const idlFactory = ({ IDL }) => {
     'isOwner' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isOwnerVisible' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isPaymentsEnabled' : IDL.Func([], [IDL.Bool], ['query']),
+    'isStoreCommerceEnabled' : IDL.Func([], [IDL.Bool], ['query']),
+    'adminSetStoreCommerceEnabled' : IDL.Func([IDL.Bool], [IDL.Text], []),
     'isRegistered' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isRegistrationFeeEnabled' : IDL.Func([], [IDL.Bool], ['query']),
     'isTippingEnabled' : IDL.Func([], [IDL.Bool], ['query']),

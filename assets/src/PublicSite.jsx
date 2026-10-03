@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   createAnonymousUserSiteActor,
   publicSiteHash,
+  createAnonymousIceActor,
 } from "./actors";
+import { fetchStoreCommerceEnabled } from "./storeCommerce";
 
 const CONNECT_ORIGIN = String(import.meta.env.VITE_CONNECT_API_ORIGIN || "").replace(/\/$/, "");
 const CONNECT_SETUP_MSG =
@@ -192,6 +194,7 @@ export default function PublicSite({
   const [activePageId, setActivePageId] = useState(initialPage || "profile");
   const [copied, setCopied] = useState(false);
   const [siteFormat, setSiteFormat] = useState("social");
+  const [storeCommerceOn, setStoreCommerceOn] = useState(false);
   const [products, setProducts] = useState([]);
   const [buyBusyId, setBuyBusyId] = useState(null);
   const [buyError, setBuyError] = useState("");
@@ -416,7 +419,25 @@ export default function PublicSite({
     }
   };
 
-  const isStore = siteFormat === "store";
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const ice = await createAnonymousIceActor();
+        const on = await fetchStoreCommerceEnabled(ice);
+        if (!cancelled) setStoreCommerceOn(!!on);
+      } catch (e) {
+        console.warn(e);
+        if (!cancelled) setStoreCommerceOn(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isStore = storeCommerceOn && siteFormat === "store";
 
   if (loading) {
     return (

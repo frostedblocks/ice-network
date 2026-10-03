@@ -298,6 +298,8 @@ service : {
   isOwner: (user: principal) -> (bool) query;
   isOwnerVisible: (user: principal) -> (bool) query;
   isPaymentsEnabled: () -> (bool) query;
+  isStoreCommerceEnabled: () -> (bool) query;
+  adminSetStoreCommerceEnabled: (bool) -> (text);
   isRegistered: (user: principal) -> (bool) query;
   isRegistrationFeeEnabled: () -> (bool) query;
   isTippingEnabled: () -> (bool) query;

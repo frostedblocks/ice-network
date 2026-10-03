@@ -4,6 +4,7 @@ import BanControls from "./BanControls";
 import SiteStats from "./SiteStats";
 import LimitControls from "./LimitControls";
 import MasterEconomyControls from "./MasterEconomyControls";
+import MasterStoreCommerceControls from "./MasterStoreCommerceControls";
 import MasterUserSearch from "./MasterUserSearch";
 import MasterHostingControls from "./MasterHostingControls";
 import MasterSiteResets from "./MasterSiteResets";
@@ -601,6 +602,7 @@ export default function Profile({ actor, identity }) {
 
             {masterTab === "economy" && (
               <div className="ice-master-pane">
+                <MasterStoreCommerceControls actor={actor} />
                 <MasterEconomyControls actor={actor} />
                 <LimitControls actor={actor} />
               </div>
