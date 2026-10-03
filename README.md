@@ -4,6 +4,19 @@ On-chain social network and personal sites for **ICE Network**, operated as a tr
 
 Lite (Web2 door) is a **separate** product/repo: [lite.frostedblocks.com](https://lite.frostedblocks.com).
 
+## GitHub is backup — not live
+
+**This GitHub repo is source / backup code only.** Pushing or merging here does **not** change what users see.
+
+| What | Where it actually runs |
+|------|-------------------------|
+| Live website | [frostedblocks.com](https://frostedblocks.com) → **assets** canister `6hhqv-baaaa-aaaan-q6mxq-cai` |
+| Social / profiles / tips | **ice** canister `6jf55-2qaaa-aaaan-q6mwq-cai` |
+| Personal site mint / upgrades | **factory** `xfwx3-7yaaa-aaaas-qgxpq-cai` + minted **user_site** canisters |
+| Stripe Connect API | [frostedblocks-connect.vercel.app](https://frostedblocks-connect.vercel.app) (secrets stay off-canister) |
+
+To update the live product: **build from this repo, then deploy** to the canisters (and Vercel for Connect). See [docs/GITHUB_VS_LIVE.md](docs/GITHUB_VS_LIVE.md).
+
 ## What this product is
 
 - Free **username** on ICE (Internet Identity) to post and browse the feed
@@ -52,6 +65,7 @@ canister_ids.json
 
 ## Ops docs (internal)
 
+- [docs/GITHUB_VS_LIVE.md](docs/GITHUB_VS_LIVE.md) — GitHub is backup; canisters/Vercel are live
 - [docs/CONNECT_OPS.md](docs/CONNECT_OPS.md) — Connect backend wiring
 - [docs/ops-llc-gate.md](docs/ops-llc-gate.md) — when to form a Delaware LLC
 - [docs/ops-connect-go-live.md](docs/ops-connect-go-live.md) — gates before relying on Connect / tips / referrals at scale
