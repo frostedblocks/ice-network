@@ -13,6 +13,12 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          // API host: lock down document CSP; CORS for frostedblocks.com is in lib/cors.ts
+          {
+            key: "Content-Security-Policy",
+            value:
+              "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+          },
         ],
       },
     ];
