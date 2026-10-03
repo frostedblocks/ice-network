@@ -152,6 +152,22 @@ function productIdKey(id) {
   return String(id);
 }
 
+/** Prefer canister photoIds (up to 2); fall back to external imageURL. */
+function productAdImages(product, siteCanisterId) {
+  const ids = Array.isArray(product?.photoIds) ? product.photoIds : [];
+  const fromIds = ids
+    .map((id) => {
+      const key = photoIdKey(id);
+      if (!key || !siteCanisterId) return "";
+      return `https://${siteCanisterId}.raw.icp0.io/photos/${key}`;
+    })
+    .filter(Boolean)
+    .slice(0, 2);
+  if (fromIds.length) return fromIds;
+  const url = unwrapOptText(product?.imageURL);
+  return url ? [url] : [];
+}
+
 /**
  * Public read-only personal website viewer.
  * URL: #/site/<canisterId>[/<pageId>] or ?site=<id>&page=<page>
@@ -588,20 +604,27 @@ export default function PublicSite({
             ) : (
               <div style={styles.productGrid}>
                 {products.map((p) => {
-                  const img = unwrapOptText(p.imageURL);
+                  const imgs = productAdImages(p, siteId);
                   const pid = productIdKey(p.id);
                   return (
                     <article key={pid} className="ice-glass-soft" style={styles.productCard}>
-                      {img ? (
-                        <img
-                          src={img}
-                          alt=""
-                          style={styles.productImg}
-                          loading="lazy"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
+                      {imgs.length > 0 ? (
+                        <div style={styles.productImgStrip}>
+                          {imgs.map((src) => (
+                            <img
+                              key={src}
+                              src={src}
+                              alt=""
+                              style={
+                                imgs.length > 1 ? styles.productImgHalf : styles.productImg
+                              }
+                              loading="lazy"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          ))}
+                        </div>
                       ) : (
                         <div style={styles.productImgFallback}>Item</div>
                       )}
@@ -805,9 +828,22 @@ const styles = {
     display: "flex",
     flexDirection: "column",
   },
+  productImgStrip: {
+    display: "flex",
+    width: "100%",
+    height: 160,
+    background: "rgba(15,23,42,0.55)",
+  },
   productImg: {
     display: "block",
     width: "100%",
+    height: 160,
+    objectFit: "cover",
+    background: "rgba(15,23,42,0.55)",
+  },
+  productImgHalf: {
+    display: "block",
+    width: "50%",
     height: 160,
     objectFit: "cover",
     background: "rgba(15,23,42,0.55)",

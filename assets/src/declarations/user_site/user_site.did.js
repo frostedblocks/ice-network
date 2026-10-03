@@ -15,6 +15,7 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'updatedAt' : IDL.Int,
     'imageURL' : IDL.Opt(IDL.Text),
+    'photoIds' : IDL.Vec(IDL.Nat),
     'currency' : IDL.Text,
     'priceCents' : IDL.Nat,
   });
@@ -152,7 +153,7 @@ export const idlFactory = ({ IDL }) => {
     'clearStripePublic' : IDL.Func([], [IDL.Text], []),
     'confirmDnsConfigured' : IDL.Func([], [IDL.Text], []),
     'createProduct' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Opt(IDL.Text)],
+        [IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Opt(IDL.Text), IDL.Vec(IDL.Nat)],
         [ProductResult],
         [],
       ),
@@ -237,6 +238,7 @@ export const idlFactory = ({ IDL }) => {
           IDL.Nat,
           IDL.Text,
           IDL.Opt(IDL.Text),
+          IDL.Vec(IDL.Nat),
           IDL.Bool,
         ],
         [IDL.Text],

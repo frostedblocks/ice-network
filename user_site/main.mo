@@ -155,7 +155,22 @@ persistent actor class UserSite(initOwner : Principal) = this {
 
   public type SiteFormat = { #social; #store };
 
+  /// Public product (photoIds reference site photo library; max 2).
   public type Product = {
+    id : Nat;
+    title : Text;
+    description : Text;
+    priceCents : Nat;
+    currency : Text;
+    imageURL : ?Text;
+    photoIds : [Nat];
+    active : Bool;
+    createdAt : Int;
+    updatedAt : Int;
+  };
+
+  /// Stable product row — same fields as pre-photoIds Product (upgrade-safe).
+  type StoredProduct = {
     id : Nat;
     title : Text;
     description : Text;
@@ -190,6 +205,8 @@ persistent actor class UserSite(initOwner : Principal) = this {
   private let LOW_CYCLES_THRESHOLD : Nat = 2_000_000_000_000;
   /// Photo library limits (owner storage on this canister only).
   private let MAX_PHOTOS : Nat = 10;
+  /// Max photos attached per product ad (IDs into site photo library).
+  private let MAX_PRODUCT_PHOTOS : Nat = 2;
   /// Max stored size after client compression (WebP only).
   private let MAX_PHOTO_BYTES : Nat = 1_572_864; // 1.5 MB
   /// Single-call upload (matches max after compression).
@@ -257,14 +274,17 @@ persistent actor class UserSite(initOwner : Principal) = this {
   // Store format + catalog + Stripe public config + receipts (append-only after cyclesAtCheck)
   private stable var siteFormat : SiteFormat = #social;
   private stable var nextProductId : Nat = 1;
-  private stable var productsEntries : [(Nat, Product)] = [];
+  private stable var productsEntries : [(Nat, StoredProduct)] = [];
+  /// Product id → up to MAX_PRODUCT_PHOTOS photo library ids (reuse blobs).
+  private stable var productPhotoIdsEntries : [(Nat, [Nat])] = [];
   private stable var stripeAccountId : Text = "";
   private stable var stripePublishableKey : Text = "";
   private stable var nextReceiptId : Nat = 1;
   private stable var receiptsEntries : [(Nat, Receipt)] = [];
   private stable var trustedRecordersEntries : [(Principal, Bool)] = [];
 
-  private transient var products = HashMap.HashMap<Nat, Product>(0, Nat.equal, natHash);
+  private transient var products = HashMap.HashMap<Nat, StoredProduct>(0, Nat.equal, natHash);
+  private transient var productPhotoIds = HashMap.HashMap<Nat, [Nat]>(0, Nat.equal, natHash);
   private transient var receipts = HashMap.HashMap<Nat, Receipt>(0, Nat.equal, natHash);
   private transient var trustedRecorders = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
 
@@ -278,6 +298,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
     feedEntries := Buffer.toArray(localFeed);
     photosEntries := Iter.toArray(photos.entries());
     productsEntries := Iter.toArray(products.entries());
+    productPhotoIdsEntries := Iter.toArray(productPhotoIds.entries());
     receiptsEntries := Iter.toArray(receipts.entries());
     trustedRecordersEntries := Iter.toArray(trustedRecorders.entries());
   };
@@ -295,8 +316,11 @@ persistent actor class UserSite(initOwner : Principal) = this {
     photos := HashMap.fromIter<Nat, StoredPhoto>(
       photosEntries.vals(), photosEntries.size(), Nat.equal, natHash
     );
-    products := HashMap.fromIter<Nat, Product>(
+    products := HashMap.fromIter<Nat, StoredProduct>(
       productsEntries.vals(), productsEntries.size(), Nat.equal, natHash
+    );
+    productPhotoIds := HashMap.fromIter<Nat, [Nat]>(
+      productPhotoIdsEntries.vals(), productPhotoIdsEntries.size(), Nat.equal, natHash
     );
     receipts := HashMap.fromIter<Nat, Receipt>(
       receiptsEntries.vals(), receiptsEntries.size(), Nat.equal, natHash
@@ -312,6 +336,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
     feedEntries := [];
     photosEntries := [];
     productsEntries := [];
+    productPhotoIdsEntries := [];
     receiptsEntries := [];
     trustedRecordersEntries := [];
   };
@@ -1378,21 +1403,66 @@ persistent actor class UserSite(initOwner : Principal) = this {
 
   public query func getFormat() : async SiteFormat { siteFormat };
 
+  private func toProduct(p : StoredProduct) : Product {
+    let ids = switch (productPhotoIds.get(p.id)) {
+      case null { [] : [Nat] };
+      case (?x) { x };
+    };
+    {
+      id = p.id;
+      title = p.title;
+      description = p.description;
+      priceCents = p.priceCents;
+      currency = p.currency;
+      imageURL = p.imageURL;
+      photoIds = ids;
+      active = p.active;
+      createdAt = p.createdAt;
+      updatedAt = p.updatedAt;
+    }
+  };
+
+  /// Validate photoIds: max 2, no dups, each id exists in site photo library.
+  private func normalizeProductPhotoIds(ids : [Nat]) : { #ok : [Nat]; #err : Text } {
+    if (ids.size() > MAX_PRODUCT_PHOTOS) {
+      return #err("At most 2 photos per product");
+    };
+    let out = Buffer.Buffer<Nat>(ids.size());
+    for (id in ids.vals()) {
+      var dup = false;
+      for (existing in out.vals()) {
+        if (existing == id) { dup := true };
+      };
+      if (dup) { return #err("Duplicate photo id") };
+      switch (photos.get(id)) {
+        case null { return #err("Photo not found: " # Nat.toText(id)) };
+        case (?_) { out.add(id) };
+      };
+    };
+    #ok(Buffer.toArray(out))
+  };
+
+
   public shared(msg) func createProduct(
     title : Text,
     description : Text,
     priceCents : Nat,
     currency : Text,
-    imageURL : ?Text
+    imageURL : ?Text,
+    photoIds : [Nat]
   ) : async ProductResult {
     if (not isOwner(msg.caller)) { return #err("Not authorized") };
     if (Text.size(title) == 0) { return #err("Title required") };
     if (priceCents == 0) { return #err("Price must be > 0") };
+    let idsNorm = switch (normalizeProductPhotoIds(photoIds)) {
+      case (#err e) { return #err(e) };
+      case (#ok ids) { ids };
+    };
     let cur = if (Text.size(currency) == 0) { "usd" } else { Text.toLowercase(currency) };
     let now = Time.now();
     let id = nextProductId;
     nextProductId += 1;
-    let prod : Product = {
+    let stored : StoredProduct = {
       id;
       title;
       description;
@@ -1403,8 +1473,11 @@ persistent actor class UserSite(initOwner : Principal) = this {
       createdAt = now;
       updatedAt = now;
     };
-    products.put(id, prod);
-    #ok(prod)
+    products.put(id, stored);
+    if (idsNorm.size() > 0) {
+      productPhotoIds.put(id, idsNorm);
+    };
+    #ok(toProduct(stored))
   };
 
   public shared(msg) func updateProduct(
@@ -1414,6 +1487,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
     priceCents : Nat,
     currency : Text,
     imageURL : ?Text,
+    photoIds : [Nat],
     active : Bool
   ) : async Text {
     if (not isOwner(msg.caller)) { return "Not authorized" };
@@ -1422,6 +1496,10 @@ persistent actor class UserSite(initOwner : Principal) = this {
       case (?old) {
         if (Text.size(title) == 0) { return "Title required" };
         if (priceCents == 0) { return "Price must be > 0" };
+        let idsNorm = switch (normalizeProductPhotoIds(photoIds)) {
+          case (#err e) { return e };
+          case (#ok ids) { ids };
+        };
         let cur = if (Text.size(currency) == 0) { old.currency } else { Text.toLowercase(currency) };
         products.put(id, {
           id;
@@ -1434,6 +1512,11 @@ persistent actor class UserSite(initOwner : Principal) = this {
           createdAt = old.createdAt;
           updatedAt = Time.now();
         });
+        if (idsNorm.size() == 0) {
+          ignore productPhotoIds.remove(id);
+        } else {
+          productPhotoIds.put(id, idsNorm);
+        };
         "Updated"
       };
     }
@@ -1463,7 +1546,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
   public query func listProducts() : async [Product] {
     let buf = Buffer.Buffer<Product>(products.size());
     for ((_, p) in products.entries()) {
-      if (p.active) { buf.add(p) };
+      if (p.active) { buf.add(toProduct(p)) };
     };
     Buffer.toArray(buf)
   };
@@ -1471,12 +1554,15 @@ persistent actor class UserSite(initOwner : Principal) = this {
   public shared query(msg) func listAllProducts() : async [Product] {
     if (not isOwner(msg.caller)) { return [] };
     let buf = Buffer.Buffer<Product>(products.size());
-    for ((_, p) in products.entries()) { buf.add(p) };
+    for ((_, p) in products.entries()) { buf.add(toProduct(p)) };
     Buffer.toArray(buf)
   };
 
   public query func getProduct(id : Nat) : async ?Product {
-    products.get(id)
+    switch (products.get(id)) {
+      case null { null };
+      case (?p) { ?toProduct(p) };
+    }
   };
 
   /// Owner cannot paste arbitrary Connect account ids — use Express OAuth.

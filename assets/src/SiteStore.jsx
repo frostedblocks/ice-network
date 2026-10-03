@@ -1,7 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createUserSiteActor, publicSiteHash } from "./actors";
 import { unwrapOpt } from "./candidUtils";
 import { copyTextToClipboard } from "./copyText";
+import {
+  MAX_PRODUCT_PHOTOS,
+  agentErrorMessage,
+  normalizePhoto,
+  photoIdKey,
+  productPhotoUrl,
+  unwrapPhotoIds,
+  uploadSitePhoto,
+} from "./sitePhotoUpload";
 
 const CONNECT_ORIGIN = String(import.meta.env.VITE_CONNECT_API_ORIGIN || "").replace(/\/$/, "");
 const CONNECT_SETUP_MSG =
@@ -121,7 +130,11 @@ export default function SiteStore({ identity, siteId }) {
   const [description, setDescription] = useState("");
   const [priceDollars, setPriceDollars] = useState("");
   const [imageURL, setImageURL] = useState("");
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState([]); // string keys, max 2
+  const [libraryPhotos, setLibraryPhotos] = useState([]);
+  const [showImageUrl, setShowImageUrl] = useState(false);
   const [editId, setEditId] = useState(null);
+  const productPhotoInputRef = useRef(null);
 
   const ownerPrincipal = useMemo(() => {
     try {
@@ -175,6 +188,20 @@ export default function SiteStore({ identity, siteId }) {
         list = [];
       }
       setProducts(Array.isArray(list) ? list : []);
+
+      let photoList = [];
+      try {
+        if (typeof site.listPhotos === "function") {
+          photoList = await site.listPhotos();
+        }
+      } catch {
+        photoList = [];
+      }
+      setLibraryPhotos(
+        (Array.isArray(photoList) ? photoList : [])
+          .map((p) => normalizePhoto(p, siteId))
+          .filter(Boolean)
+      );
 
       let rcpt = [];
       try {
@@ -361,6 +388,8 @@ export default function SiteStore({ identity, siteId }) {
     setDescription("");
     setPriceDollars("");
     setImageURL("");
+    setSelectedPhotoIds([]);
+    setShowImageUrl(false);
   };
 
   const beginEdit = (p) => {
@@ -369,7 +398,57 @@ export default function SiteStore({ identity, siteId }) {
     setDescription(p.description || "");
     const cents = typeof p.priceCents === "bigint" ? Number(p.priceCents) : Number(p.priceCents);
     setPriceDollars(Number.isFinite(cents) ? (cents / 100).toFixed(2) : "");
-    setImageURL(optText(p.imageURL));
+    const url = optText(p.imageURL);
+    setImageURL(url);
+    setShowImageUrl(!!url);
+    setSelectedPhotoIds(unwrapPhotoIds(p.photoIds).slice(0, MAX_PRODUCT_PHOTOS));
+  };
+
+  const toggleLibraryPhoto = (id) => {
+    const key = photoIdKey(id);
+    setSelectedPhotoIds((prev) => {
+      if (prev.includes(key)) return prev.filter((x) => x !== key);
+      if (prev.length >= MAX_PRODUCT_PHOTOS) {
+        flash("", `At most ${MAX_PRODUCT_PHOTOS} photos per product.`);
+        return prev;
+      }
+      return [...prev, key];
+    });
+  };
+
+  const removeSelectedPhoto = (key) => {
+    setSelectedPhotoIds((prev) => prev.filter((x) => x !== key));
+  };
+
+  const uploadProductPhoto = async (file) => {
+    if (!identity || !siteId || !file || busy) return;
+    if (selectedPhotoIds.length >= MAX_PRODUCT_PHOTOS) {
+      flash("", `At most ${MAX_PRODUCT_PHOTOS} photos per product.`);
+      return;
+    }
+    setBusy(true);
+    flash("", "");
+    try {
+      const site = await createUserSiteActor(identity, siteId);
+      const meta = await uploadSitePhoto(site, siteId, file, {
+        onProgress: (m) => flash(m, ""),
+      });
+      const key = photoIdKey(meta.id);
+      setLibraryPhotos((prev) => {
+        if (prev.some((p) => photoIdKey(p.id) === key)) return prev;
+        return [meta, ...prev];
+      });
+      setSelectedPhotoIds((prev) =>
+        prev.includes(key) || prev.length >= MAX_PRODUCT_PHOTOS ? prev : [...prev, key]
+      );
+      flash(`Photo #${key} ready for this product.`, "");
+    } catch (err) {
+      console.error(err);
+      flash("", agentErrorMessage(err) || "Photo upload failed.");
+    } finally {
+      setBusy(false);
+      if (productPhotoInputRef.current) productPhotoInputRef.current.value = "";
+    }
   };
 
   const saveProduct = async (e) => {
@@ -384,7 +463,12 @@ export default function SiteStore({ identity, siteId }) {
       flash("", "Enter a price greater than 0 (USD).");
       return;
     }
+    if (selectedPhotoIds.length > MAX_PRODUCT_PHOTOS) {
+      flash("", `At most ${MAX_PRODUCT_PHOTOS} photos per product.`);
+      return;
+    }
     const imgOpt = imageURL.trim() ? [imageURL.trim()] : [];
+    const photoIdsArg = selectedPhotoIds.map((id) => BigInt(id));
     setBusy(true);
     flash("", "");
     try {
@@ -399,6 +483,7 @@ export default function SiteStore({ identity, siteId }) {
           BigInt(cents),
           "usd",
           imgOpt,
+          photoIdsArg,
           active
         );
         flash(typeof out === "string" ? out : "Updated", "");
@@ -408,7 +493,8 @@ export default function SiteStore({ identity, siteId }) {
           description.trim(),
           BigInt(cents),
           "usd",
-          imgOpt
+          imgOpt,
+          photoIdsArg
         );
         if (result && "err" in result && result.err) {
           flash("", result.err);
@@ -595,15 +681,140 @@ export default function SiteStore({ identity, siteId }) {
               required
             />
           </label>
-          <label style={labelStyle}>
-            Image URL (optional)
-            <input
-              className="ice-input"
-              value={imageURL}
-              onChange={(ev) => setImageURL(ev.target.value)}
-              placeholder="https://…"
-            />
-          </label>
+          <div style={{ marginTop: "0.65rem" }}>
+            <div style={{ fontWeight: 600, color: "#e2e8f0", fontSize: "0.9rem", marginBottom: 6 }}>
+              Product photos (up to {MAX_PRODUCT_PHOTOS})
+            </div>
+            <p style={{ margin: "0 0 0.55rem", color: "#94a3b8", fontSize: "0.78rem", lineHeight: 1.45 }}>
+              Upload new photos into your site canister, or reuse photos already in your library to
+              save space. Same photo can appear on multiple products.
+            </p>
+            {selectedPhotoIds.length > 0 ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                {selectedPhotoIds.map((key) => (
+                  <div key={key} style={{ position: "relative" }}>
+                    <img
+                      src={productPhotoUrl(siteId, key)}
+                      alt=""
+                      style={{
+                        width: 72,
+                        height: 72,
+                        objectFit: "cover",
+                        borderRadius: 10,
+                        border: "1px solid rgba(148,163,184,0.35)",
+                      }}
+                      onError={(ev) => {
+                        ev.currentTarget.style.opacity = "0.35";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="ice-btn"
+                      disabled={busy}
+                      onClick={() => removeSelectedPhoto(key)}
+                      style={{
+                        position: "absolute",
+                        top: -6,
+                        right: -6,
+                        padding: "0 6px",
+                        fontSize: "0.7rem",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: "#64748b", fontSize: "0.8rem", marginBottom: 8 }}>
+                No photos selected yet.
+              </div>
+            )}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem", marginBottom: 10 }}>
+              <button
+                type="button"
+                className="ice-btn"
+                disabled={busy || selectedPhotoIds.length >= MAX_PRODUCT_PHOTOS}
+                onClick={() => productPhotoInputRef.current?.click()}
+              >
+                Upload photo
+              </button>
+              <input
+                ref={productPhotoInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={(ev) => {
+                  const f = ev.target.files && ev.target.files[0];
+                  if (f) uploadProductPhoto(f);
+                }}
+              />
+            </div>
+            {libraryPhotos.length > 0 ? (
+              <div>
+                <div style={{ color: "#94a3b8", fontSize: "0.78rem", marginBottom: 6 }}>
+                  Reuse from library
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {libraryPhotos.map((ph) => {
+                    const key = photoIdKey(ph.id);
+                    const selected = selectedPhotoIds.includes(key);
+                    const full = !selected && selectedPhotoIds.length >= MAX_PRODUCT_PHOTOS;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        disabled={busy || full}
+                        onClick={() => toggleLibraryPhoto(ph.id)}
+                        title={selected ? "Remove from product" : "Add to product"}
+                        style={{
+                          padding: 0,
+                          border: selected
+                            ? "2px solid #86efac"
+                            : "1px solid rgba(148,163,184,0.35)",
+                          borderRadius: 10,
+                          overflow: "hidden",
+                          opacity: full ? 0.4 : 1,
+                          cursor: full ? "not-allowed" : "pointer",
+                          background: "transparent",
+                        }}
+                      >
+                        <img
+                          src={ph.url || productPhotoUrl(siteId, key)}
+                          alt=""
+                          style={{ width: 56, height: 56, objectFit: "cover", display: "block" }}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: "#64748b", fontSize: "0.78rem" }}>
+                Library empty — upload a photo above (also available under Photos).
+              </div>
+            )}
+            <button
+              type="button"
+              className="ice-btn"
+              style={{ marginTop: 10, fontSize: "0.78rem" }}
+              onClick={() => setShowImageUrl((v) => !v)}
+            >
+              {showImageUrl ? "Hide external image URL" : "Optional: external image URL"}
+            </button>
+            {showImageUrl ? (
+              <label style={labelStyle}>
+                Image URL (fallback if no canister photos)
+                <input
+                  className="ice-input"
+                  value={imageURL}
+                  onChange={(ev) => setImageURL(ev.target.value)}
+                  placeholder="https://…"
+                />
+              </label>
+            ) : null}
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.35rem" }}>
             <button type="submit" className="ice-btn-primary" disabled={busy}>
               {busy ? "Saving…" : editId != null ? "Update product" : "Create product"}
@@ -624,7 +835,13 @@ export default function SiteStore({ identity, siteId }) {
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {products.map((p) => {
-              const img = optText(p.imageURL);
+              const ids = unwrapPhotoIds(p.photoIds);
+              const fallback = optText(p.imageURL);
+              const thumbs = ids.length
+                ? ids.map((id) => productPhotoUrl(siteId, id))
+                : fallback
+                  ? [fallback]
+                  : [];
               return (
                 <li
                   key={productIdKey(p.id)}
@@ -639,21 +856,25 @@ export default function SiteStore({ identity, siteId }) {
                     opacity: p.active ? 1 : 0.55,
                   }}
                 >
-                  {img ? (
-                    <img
-                      src={img}
-                      alt=""
-                      style={{
-                        width: 64,
-                        height: 64,
-                        objectFit: "cover",
-                        borderRadius: 10,
-                        flexShrink: 0,
-                      }}
-                      onError={(ev) => {
-                        ev.currentTarget.style.display = "none";
-                      }}
-                    />
+                  {thumbs.length > 0 ? (
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      {thumbs.slice(0, 2).map((src) => (
+                        <img
+                          key={src}
+                          src={src}
+                          alt=""
+                          style={{
+                            width: 56,
+                            height: 56,
+                            objectFit: "cover",
+                            borderRadius: 10,
+                          }}
+                          onError={(ev) => {
+                            ev.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ))}
+                    </div>
                   ) : null}
                   <div style={{ flex: 1, minWidth: 160 }}>
                     <div style={{ fontWeight: 650, color: "#f8fafc" }}>
