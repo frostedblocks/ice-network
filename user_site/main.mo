@@ -161,6 +161,8 @@ persistent actor class UserSite(initOwner : Principal) = this {
     title : Text;
     description : Text;
     priceCents : Nat;
+    /// Seller-set shipping in cents (0 = free / digital). Not buyer-supplied.
+    shippingCents : Nat;
     currency : Text;
     imageURL : ?Text;
     photoIds : [Nat];
@@ -277,6 +279,8 @@ persistent actor class UserSite(initOwner : Principal) = this {
   private stable var productsEntries : [(Nat, StoredProduct)] = [];
   /// Product id → up to MAX_PRODUCT_PHOTOS photo library ids (reuse blobs).
   private stable var productPhotoIdsEntries : [(Nat, [Nat])] = [];
+  /// Product id → seller shipping cents (absent ⇒ 0 for pre-shipping products).
+  private stable var productShippingCentsEntries : [(Nat, Nat)] = [];
   private stable var stripeAccountId : Text = "";
   private stable var stripePublishableKey : Text = "";
   private stable var nextReceiptId : Nat = 1;
@@ -285,6 +289,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
 
   private transient var products = HashMap.HashMap<Nat, StoredProduct>(0, Nat.equal, natHash);
   private transient var productPhotoIds = HashMap.HashMap<Nat, [Nat]>(0, Nat.equal, natHash);
+  private transient var productShippingCents = HashMap.HashMap<Nat, Nat>(0, Nat.equal, natHash);
   private transient var receipts = HashMap.HashMap<Nat, Receipt>(0, Nat.equal, natHash);
   private transient var trustedRecorders = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
 
@@ -299,6 +304,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
     photosEntries := Iter.toArray(photos.entries());
     productsEntries := Iter.toArray(products.entries());
     productPhotoIdsEntries := Iter.toArray(productPhotoIds.entries());
+    productShippingCentsEntries := Iter.toArray(productShippingCents.entries());
     receiptsEntries := Iter.toArray(receipts.entries());
     trustedRecordersEntries := Iter.toArray(trustedRecorders.entries());
   };
@@ -322,6 +328,9 @@ persistent actor class UserSite(initOwner : Principal) = this {
     productPhotoIds := HashMap.fromIter<Nat, [Nat]>(
       productPhotoIdsEntries.vals(), productPhotoIdsEntries.size(), Nat.equal, natHash
     );
+    productShippingCents := HashMap.fromIter<Nat, Nat>(
+      productShippingCentsEntries.vals(), productShippingCentsEntries.size(), Nat.equal, natHash
+    );
     receipts := HashMap.fromIter<Nat, Receipt>(
       receiptsEntries.vals(), receiptsEntries.size(), Nat.equal, natHash
     );
@@ -337,6 +346,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
     photosEntries := [];
     productsEntries := [];
     productPhotoIdsEntries := [];
+    productShippingCentsEntries := [];
     receiptsEntries := [];
     trustedRecordersEntries := [];
   };
@@ -1408,11 +1418,16 @@ persistent actor class UserSite(initOwner : Principal) = this {
       case null { [] : [Nat] };
       case (?x) { x };
     };
+    let ship = switch (productShippingCents.get(p.id)) {
+      case null { 0 : Nat };
+      case (?s) { s };
+    };
     {
       id = p.id;
       title = p.title;
       description = p.description;
       priceCents = p.priceCents;
+      shippingCents = ship;
       currency = p.currency;
       imageURL = p.imageURL;
       photoIds = ids;
@@ -1447,6 +1462,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
     title : Text,
     description : Text,
     priceCents : Nat,
+    shippingCents : Nat,
     currency : Text,
     imageURL : ?Text,
     photoIds : [Nat]
@@ -1477,6 +1493,9 @@ persistent actor class UserSite(initOwner : Principal) = this {
     if (idsNorm.size() > 0) {
       productPhotoIds.put(id, idsNorm);
     };
+    if (shippingCents > 0) {
+      productShippingCents.put(id, shippingCents);
+    };
     #ok(toProduct(stored))
   };
 
@@ -1485,6 +1504,7 @@ persistent actor class UserSite(initOwner : Principal) = this {
     title : Text,
     description : Text,
     priceCents : Nat,
+    shippingCents : Nat,
     currency : Text,
     imageURL : ?Text,
     photoIds : [Nat],
@@ -1516,6 +1536,11 @@ persistent actor class UserSite(initOwner : Principal) = this {
           ignore productPhotoIds.remove(id);
         } else {
           productPhotoIds.put(id, idsNorm);
+        };
+        if (shippingCents == 0) {
+          ignore productShippingCents.remove(id);
+        } else {
+          productShippingCents.put(id, shippingCents);
         };
         "Updated"
       };

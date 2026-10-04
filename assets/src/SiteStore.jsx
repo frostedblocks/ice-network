@@ -39,6 +39,20 @@ function centsFromDollars(raw) {
   return Math.round(n * 100);
 }
 
+/** Allow 0 for free/digital shipping. Empty → 0. */
+function shippingCentsFromDollars(raw) {
+  const s = String(raw ?? "").trim();
+  if (s === "") return 0;
+  const n = Number(s.replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100);
+}
+
+function numCents(v) {
+  const n = typeof v === "bigint" ? Number(v) : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function formatPrice(cents, currency = "usd") {
   const n = typeof cents === "bigint" ? Number(cents) : Number(cents);
   if (!Number.isFinite(n)) return "—";
@@ -129,6 +143,7 @@ export default function SiteStore({ identity, siteId }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priceDollars, setPriceDollars] = useState("");
+  const [shippingDollars, setShippingDollars] = useState("0.00");
   const [imageURL, setImageURL] = useState("");
   const [selectedPhotoIds, setSelectedPhotoIds] = useState([]); // string keys, max 2
   const [libraryPhotos, setLibraryPhotos] = useState([]);
@@ -387,6 +402,7 @@ export default function SiteStore({ identity, siteId }) {
     setTitle("");
     setDescription("");
     setPriceDollars("");
+    setShippingDollars("0.00");
     setImageURL("");
     setSelectedPhotoIds([]);
     setShowImageUrl(false);
@@ -396,8 +412,10 @@ export default function SiteStore({ identity, siteId }) {
     setEditId(productIdKey(p.id));
     setTitle(p.title || "");
     setDescription(p.description || "");
-    const cents = typeof p.priceCents === "bigint" ? Number(p.priceCents) : Number(p.priceCents);
+    const cents = numCents(p.priceCents);
     setPriceDollars(Number.isFinite(cents) ? (cents / 100).toFixed(2) : "");
+    const ship = numCents(p.shippingCents);
+    setShippingDollars((ship / 100).toFixed(2));
     const url = optText(p.imageURL);
     setImageURL(url);
     setShowImageUrl(!!url);
@@ -455,12 +473,17 @@ export default function SiteStore({ identity, siteId }) {
     e?.preventDefault?.();
     if (!identity || !siteId || busy) return;
     const cents = centsFromDollars(priceDollars);
+    const shipCents = shippingCentsFromDollars(shippingDollars);
     if (!title.trim()) {
       flash("", "Title required.");
       return;
     }
     if (cents == null || cents <= 0) {
       flash("", "Enter a price greater than 0 (USD).");
+      return;
+    }
+    if (shipCents == null) {
+      flash("", "Enter shipping as 0 or more (USD). Use 0 for free or digital.");
       return;
     }
     if (selectedPhotoIds.length > MAX_PRODUCT_PHOTOS) {
@@ -481,6 +504,7 @@ export default function SiteStore({ identity, siteId }) {
           title.trim(),
           description.trim(),
           BigInt(cents),
+          BigInt(shipCents),
           "usd",
           imgOpt,
           photoIdsArg,
@@ -492,6 +516,7 @@ export default function SiteStore({ identity, siteId }) {
           title.trim(),
           description.trim(),
           BigInt(cents),
+          BigInt(shipCents),
           "usd",
           imgOpt,
           photoIdsArg
@@ -667,20 +692,44 @@ export default function SiteStore({ identity, siteId }) {
               style={{ resize: "vertical" }}
             />
           </label>
-          <label style={labelStyle}>
-            Price (USD)
-            <input
-              className="ice-input"
-              type="number"
-              inputMode="decimal"
-              min="0.01"
-              step="0.01"
-              value={priceDollars}
-              onChange={(ev) => setPriceDollars(ev.target.value)}
-              placeholder="9.99"
-              required
-            />
-          </label>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.65rem",
+            }}
+          >
+            <label style={labelStyle}>
+              Price (USD)
+              <input
+                className="ice-input"
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
+                value={priceDollars}
+                onChange={(ev) => setPriceDollars(ev.target.value)}
+                placeholder="9.99"
+                required
+              />
+            </label>
+            <label style={labelStyle}>
+              Shipping (USD)
+              <input
+                className="ice-input"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={shippingDollars}
+                onChange={(ev) => setShippingDollars(ev.target.value)}
+                placeholder="0.00"
+              />
+            </label>
+          </div>
+          <p style={{ margin: "0.25rem 0 0", color: "#94a3b8", fontSize: "0.78rem" }}>
+            Shipping 0 = free or digital. Buyers see price + shipping as the total.
+          </p>
           <div style={{ marginTop: "0.65rem" }}>
             <div style={{ fontWeight: 600, color: "#e2e8f0", fontSize: "0.9rem", marginBottom: 6 }}>
               Product photos (up to {MAX_PRODUCT_PHOTOS})
@@ -885,6 +934,12 @@ export default function SiteStore({ identity, siteId }) {
                     </div>
                     <div style={{ color: "#86efac", fontSize: "0.9rem", marginTop: 2 }}>
                       {formatPrice(p.priceCents, p.currency)}
+                      {numCents(p.shippingCents) > 0
+                        ? ` · ship ${formatPrice(p.shippingCents, p.currency)} · total ${formatPrice(
+                            numCents(p.priceCents) + numCents(p.shippingCents),
+                            p.currency
+                          )}`
+                        : " · free shipping"}
                     </div>
                     {p.description ? (
                       <p

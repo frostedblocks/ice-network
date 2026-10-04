@@ -135,6 +135,11 @@ function formatVariant(v) {
   return "social";
 }
 
+function numCents(v) {
+  const n = typeof v === "bigint" ? Number(v) : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function formatPrice(cents, currency = "usd") {
   const n = typeof cents === "bigint" ? Number(cents) : Number(cents);
   if (!Number.isFinite(n)) return "—";
@@ -654,6 +659,19 @@ export default function PublicSite({
                         <div style={styles.productPrice}>
                           {formatPrice(p.priceCents, p.currency)}
                         </div>
+                        <div style={styles.productShip}>
+                          Shipping:{" "}
+                          {numCents(p.shippingCents) > 0
+                            ? formatPrice(p.shippingCents, p.currency)
+                            : "Free"}
+                        </div>
+                        <div style={styles.productTotal}>
+                          Total:{" "}
+                          {formatPrice(
+                            numCents(p.priceCents) + numCents(p.shippingCents),
+                            p.currency
+                          )}
+                        </div>
                         {p.description ? (
                           <p style={styles.productDesc}>{p.description}</p>
                         ) : null}
@@ -892,6 +910,17 @@ const styles = {
     color: "#86efac",
     fontWeight: 650,
     fontSize: "0.95rem",
+  },
+  productShip: {
+    color: "#94a3b8",
+    fontSize: "0.85rem",
+    marginTop: 4,
+  },
+  productTotal: {
+    color: "#e2e8f0",
+    fontWeight: 650,
+    fontSize: "0.95rem",
+    marginTop: 4,
   },
   productDesc: {
     margin: "0.45rem 0 0",

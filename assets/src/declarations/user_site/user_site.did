@@ -73,6 +73,7 @@ type Product = record {
   photoIds : vec nat;
   currency : text;
   priceCents : nat;
+    shippingCents : nat;
 };
 type ProductResult = variant { ok : Product; err : text };
 type Receipt = record {
@@ -123,7 +124,7 @@ type UserSite = service {
   clearDomainConnection : () -> (text);
   clearStripePublic : () -> (text);
   confirmDnsConfigured : () -> (text);
-  createProduct : (text, text, nat, text, opt text, vec nat) -> (ProductResult);
+  createProduct : (text, text, nat, nat, text, opt text, vec nat) -> (ProductResult);
   deletePage : (text) -> (text);
   deletePhoto : (nat) -> (text);
   deleteProduct : (nat) -> (text);
@@ -177,7 +178,7 @@ type UserSite = service {
   syncFromPeer : (principal, nat) -> (vec Post);
   syncOwner : (principal) -> (text);
   unfollowPeer : (principal) -> (text);
-  updateProduct : (nat, text, text, nat, text, opt text, vec nat, bool) -> (text);
+  updateProduct : (nat, text, text, nat, nat, text, opt text, vec nat, bool) -> (text);
   uploadPhoto : (text, blob) -> (UploadPhotoResult);
   uploadPhotoChunk : (nat, nat, blob) -> (text);
   upsertPage : (text, text, text) -> (text);

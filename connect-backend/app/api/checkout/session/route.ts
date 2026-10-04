@@ -79,6 +79,9 @@ export async function POST(req: NextRequest) {
       "amountCents",
       "price",
       "priceCents",
+      "shipping",
+      "shippingCents",
+      "shipping_options",
       "accountId",
       "stripeAccount",
       "currency",
@@ -170,6 +173,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Shipping from canister only — never trust the browser.
+    const shippingCents = Number(product.shippingCents ?? 0n);
+    if (!Number.isSafeInteger(shippingCents) || shippingCents < 0) {
+      return jsonCors(
+        req,
+        { error: "Invalid on-canister shipping" },
+        { status: 400, allowOrigin },
+      );
+    }
+
     const currency = (product.currency || "usd").toLowerCase();
     const { platformFeeBps } = getEnv();
     const stripe = getStripe();
@@ -198,6 +211,7 @@ export async function POST(req: NextRequest) {
         siteId,
         productId: productId.toString(),
         amountCents: unitAmount.toString(),
+        shippingCents: shippingCents.toString(),
         currency,
       },
       payment_intent_data: {
@@ -207,6 +221,21 @@ export async function POST(req: NextRequest) {
         },
       },
     };
+
+    if (shippingCents > 0) {
+      sessionParams.shipping_options = [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: {
+              amount: shippingCents,
+              currency,
+            },
+            display_name: "Shipping",
+          },
+        },
+      ];
+    }
 
     if (platformFeeBps > 0) {
       const fee = Math.floor((unitAmount * platformFeeBps) / 10_000);

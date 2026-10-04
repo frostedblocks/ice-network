@@ -11,6 +11,7 @@ const userSiteIdl = ({ IDL: e }: { IDL: typeof IDL }) => {
     title: e.Text,
     description: e.Text,
     priceCents: e.Nat,
+    shippingCents: e.Nat,
     currency: e.Text,
     imageURL: e.Opt(e.Text),
     photoIds: e.Vec(e.Nat),
@@ -63,6 +64,7 @@ export type Product = {
   title: string;
   description: string;
   priceCents: bigint;
+  shippingCents: bigint;
   currency: string;
   imageURL: [] | [string];
   photoIds: bigint[];
