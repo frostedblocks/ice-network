@@ -197,17 +197,13 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
     }
   };
 
-  /** Create your account — Internet Identity, then Join/mint if new */
-  const createAccount = () => {
-    if (typeof onJoin === "function") onJoin();
-    else if (typeof onLogin === "function") onLogin();
-  };
-
-  /** Sign in — same II login; existing members enter the app (no registry kick-out) */
-  const signIn = () => {
+  /** One II door — existing members enter; new principals get Join after login. */
+  const continueWithII = () => {
     if (typeof onLogin === "function") onLogin();
     else if (typeof onJoin === "function") onJoin();
   };
+  const createAccount = continueWithII;
+  const signIn = continueWithII;
 
   const loadComments = async (postId) => {
     const key = postIdKey(postId);
@@ -263,8 +259,8 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
             <a href="/about" style={styles.navLink}>
               About
             </a>
-            <button type="button" onClick={signIn} style={styles.loginBtn}>
-              {isLocal ? "Continue (local)" : "Sign in"}
+            <button type="button" onClick={continueWithII} style={styles.loginBtn}>
+              {isLocal ? "Continue (local)" : "Continue with Internet Identity"}
             </button>
           </div>
         </header>
@@ -283,8 +279,8 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
               </p>
 
               <div style={styles.ctaRowTop}>
-                <button type="button" onClick={createAccount} style={styles.primaryBtn}>
-                  {isLocal ? "Continue (local)" : "Create your account"}
+                <button type="button" onClick={continueWithII} style={styles.primaryBtn}>
+                  {isLocal ? "Continue (local)" : "Continue with Internet Identity"}
                 </button>
                 <button type="button" onClick={exploreFeed} style={styles.secondaryBtn}>
                   Explore the public feed
@@ -324,15 +320,9 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
                   <li>Browsing the public feed is free. A username is free. A personal site later is optional hosting: one-time 10 ICP at mint (2.7 ICP canister cycles / 7.3 ICP network ops) — a hosting fee, not a token sale.</li>
                   <li>Public posts are visible to everyone.</li>
                 </ul>
-                <button type="button" onClick={createAccount} style={styles.primaryBtnCompact}>
-                  Create your account
+                <button type="button" onClick={continueWithII} style={styles.primaryBtnCompact}>
+                  {isLocal ? "Continue (local)" : "Continue with Internet Identity"}
                 </button>
-                <p style={styles.authNoteFoot}>
-                  Already have an account?{" "}
-                  <button type="button" onClick={signIn} style={styles.linkBtn}>
-                    Sign in
-                  </button>
-                </p>
               </div>
 
             </div>
@@ -387,8 +377,8 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
                   <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "0 0 0.85rem" }}>
                     Be the first to say hello.
                   </p>
-                  <button type="button" onClick={createAccount} style={styles.secondaryBtn}>
-                    Create your account
+                  <button type="button" onClick={continueWithII} style={styles.secondaryBtn}>
+                    {isLocal ? "Continue (local)" : "Continue with Internet Identity"}
                   </button>
                 </div>
               )}
@@ -499,13 +489,9 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
                               ))
                             )}
                             <p style={styles.joinHint}>
-                              <button type="button" onClick={createAccount} style={styles.linkBtn}>
-                                Create your account
-                              </button>
-                              {" or "}
-                              <button type="button" onClick={signIn} style={styles.linkBtn}>
-                                Sign in
-                              </button>{" "}
+                              <button type="button" onClick={continueWithII} style={styles.linkBtn}>
+                                {isLocal ? "Continue (local)" : "Continue with Internet Identity"}
+                              </button> 
                               to like, love, or reply.
                             </p>
                           </div>

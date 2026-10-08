@@ -12,8 +12,6 @@ import { unwrapOpt } from "./candidUtils";
 import NnsIcpFee from "./NnsIcpFee";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CANONICAL_APP_URL = "https://frostedblocks.com/";
-
 /**
  * Create username is free and calls ICE register only.
  * Mint site is a separate button: approve 10 ICP (2.7 cycles / 7.3 network), then ensureUserSite.
@@ -34,14 +32,10 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
   const [cfgLoading, setCfgLoading] = useState(true);
   const [nnsFeeReady, setNnsFeeReady] = useState(false);
   const [capacity, setCapacity] = useState(null);
-  /** True after ICE register succeeded but site mint still failing — allow site-only retry */
+  /** True after ICE register succeeded — show optional Mint step */
   const [registeredNoSite, setRegisteredNoSite] = useState(false);
-  /** "new" = create account | "returning" = already have ICE — do not pay/mint */
-  const [joinPath, setJoinPath] = useState("new");
+  /** Mint-step ack: blocks a second paid mint if they already have an ICE site */
   const [ackNoPriorAccount, setAckNoPriorAccount] = useState(false);
-  const [priorPrincipal, setPriorPrincipal] = useState("");
-  const [priorLookup, setPriorLookup] = useState(null); // null | { ok, registered, siteId, error }
-  const [priorLooking, setPriorLooking] = useState(false);
 
   const loadCapacity = useCallback(async () => {
     try {
@@ -129,149 +123,17 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
     mintNetworkOpsE8s % 100_000_000 === 0 ? 0 : 4
   );
   const canMint = capacity == null ? true : !!capacity.canMint;
-  /** New users must confirm they don't already have an ICE account before pay/mint */
-  const mayCreateNew =
-    isMaster || ackNoPriorAccount || registeredNoSite;
-  /** Free username — no Factory approve, no mint capacity gate */
-  const canSubmitFree = mayCreateNew;
-  /** Site mint — needs capacity + II approve when fee is on */
+  /** Join is username-only — no prior-account gate on free register */
+  const canSubmitFree = true;
+  /** Site mint — ack + capacity + II approve when fee is on */
   const canSubmitMint =
-    canMint && (isMaster || !mustPay || nnsFeeReady);
-
-  const lookupPriorAccount = async () => {
-    const raw = priorPrincipal.trim();
-    setPriorLookup(null);
-    if (!raw) {
-      setPriorLookup({ ok: false, error: "Paste your original principal first." });
-      return;
-    }
-    let p;
-    try {
-      p = Principal.fromText(raw);
-    } catch {
-      setPriorLookup({ ok: false, error: "That doesn’t look like a valid principal." });
-      return;
-    }
-    setPriorLooking(true);
-    try {
-      const [ice, factory] = await Promise.all([
-        createAnonymousIceActor(),
-        createAnonymousFactoryActor(),
-      ]);
-      let registered = false;
-      if (ice.isRegistered) {
-        registered = !!(await ice.isRegistered(p));
-      }
-      let siteId = "";
-      if (factory.getUserCanister) {
-        const opt = await factory.getUserCanister(p);
-        const id = unwrapOpt(opt);
-        if (id) siteId = id.toText ? id.toText() : String(id);
-      }
-      if (!registered && !siteId) {
-        setPriorLookup({
-          ok: false,
-          registered: false,
-          siteId: "",
-          error:
-            "No ICE registration or personal site found for that principal. Check the text, or you may be new.",
-        });
-      } else {
-        setPriorLookup({
-          ok: true,
-          registered,
-          siteId,
-          error: "",
-        });
-      }
-    } catch (e) {
-      console.error(e);
-      setPriorLookup({
-        ok: false,
-        error: e?.message || "Could not look up that principal.",
-      });
-    } finally {
-      setPriorLooking(false);
-    }
-  };
-
-  const onFeeReady = useCallback((ready) => setNnsFeeReady(!!ready), []);
-
-  const formatCycles = (n) => {
-    try {
-      const v = typeof n === "bigint" ? n : BigInt(n ?? 0);
-      const T = 1_000_000_000_000n;
-      if (v >= T) {
-        const whole = v / T;
-        const frac = ((v % T) * 100n) / T;
-        return `${whole}.${frac.toString().padStart(2, "0")} T`;
-      }
-      return v.toString();
-    } catch {
-      return String(n);
-    }
-  };
-
-  const provisionWebsite = async (maxAttempts = 3) => {
-    const factory = await createFactoryActor(identity);
-    let lastErr = "Website creation failed.";
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      setStep(
-        maxAttempts > 1
-          ? `Creating your personal website (attempt ${attempt}/${maxAttempts})…`
-          : "Creating your personal website canister…"
-      );
-      try {
-        const fn = factory.ensureUserSite || factory.createUserSite;
-        const result = await fn.call(factory);
-        if (result && "ok" in result && result.ok) {
-          const id = result.ok.toText ? result.ok.toText() : String(result.ok);
-          setSiteId(id);
-          try {
-            if (factory.revealPendingRecoveryCode) {
-              const rev = await factory.revealPendingRecoveryCode();
-              if (rev?.ok) setRecoveryCode(rev.ok);
-            }
-          } catch (_) {
-            /* optional */
-          }
-          return { ok: true, siteId: id };
-        }
-        lastErr =
-          (result && "err" in result && result.err) ||
-          "Website creation failed. You are registered — retry site only (no Join fee).";
-        // Low cycles: no point retrying immediately
-        if (/cycles too low|No user_site WASM/i.test(lastErr)) {
-          break;
-        }
-      } catch (e) {
-        lastErr = e?.message || String(e);
-      }
-      if (attempt < maxAttempts) {
-        await sleep(1200 * attempt);
-      }
-    }
-    return { ok: false, error: lastErr };
-  };
+    canMint &&
+    (isMaster || ackNoPriorAccount) &&
+    (isMaster || !mustPay || nnsFeeReady);
 
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!actor || !identity) return;
-
-    if (joinPath === "returning") {
-      setError(
-        "You chose “I already have an account.” Do not Create account here — open the canonical app with the same Internet Identity instead."
-      );
-      return;
-    }
-
-    if (!isMaster && !ackNoPriorAccount) {
-      setError(
-        "Confirm you do not already have an ICE account (checkbox below), or choose “I already have an account” so we don’t mint a second site."
-      );
-      return;
-    }
 
     const name = username.trim();
     if (name.length === 0) {
@@ -380,465 +242,252 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
       }}
     >
       <h2 className="ice-title" style={{ marginTop: 0 }}>
-        Create your account
+        {registeredNoSite ? "Optional personal site" : "Choose a username"}
       </h2>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "0.4rem",
-          marginBottom: "0.85rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <button
-          type="button"
-          className={joinPath === "new" ? "ice-btn-primary" : "ice-btn"}
-          onClick={() => {
-            setJoinPath("new");
-            setError("");
-          }}
-          style={{ flex: "1 1 8rem", fontSize: "0.82rem" }}
-        >
-          I’m new
-        </button>
-        <button
-          type="button"
-          className={joinPath === "returning" ? "ice-btn-primary" : "ice-btn"}
-          onClick={() => {
-            setJoinPath("returning");
-            setError("");
-            setAckNoPriorAccount(false);
-          }}
-          style={{ flex: "1 1 8rem", fontSize: "0.82rem" }}
-        >
-          I already have an account
-        </button>
-      </div>
+      {!registeredNoSite ? (
+        <>
+          <p style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.5, margin: "0 0 0.85rem" }}>
+            Pick a free username to post on ICE. A personal site is optional — you can mint one next,
+            or continue without minting.
+          </p>
 
-      {joinPath === "returning" ? (
-        <div
-          style={{
-            margin: "0 0 1rem",
-            padding: "0.85rem 0.9rem",
-            borderRadius: 12,
-            background: "rgba(120, 53, 15, 0.28)",
-            border: "1px solid rgba(251, 191, 36, 0.4)",
-          }}
-        >
-          <p style={{ margin: "0 0 0.55rem", color: "#fde68a", fontWeight: 700, fontSize: "0.9rem" }}>
-            Do not pay Join or create another website
+          {isMaster && (
+            <p
+              style={{
+                margin: "0 0 1rem",
+                padding: "0.55rem 0.7rem",
+                borderRadius: 8,
+                background: "rgba(30, 58, 95, 0.45)",
+                border: "1px solid rgba(125, 211, 252, 0.35)",
+                color: "#7dd3fc",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+              }}
+            >
+              Master account detected — registration is free (no ICP).
+            </p>
+          )}
+
+          <form onSubmit={handleRegister}>
+            <label style={labelStyle}>Username</label>
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Unique username"
+              maxLength={50}
+              style={inputStyle}
+              disabled={loading}
+              autoFocus
+              required
+            />
+
+            {onCancel && (
+              <button
+                type="button"
+                className="ice-btn"
+                disabled={loading}
+                onClick={onCancel}
+                style={{ width: "100%", marginTop: "0.75rem" }}
+              >
+                Back — keep browsing
+              </button>
+            )}
+
+            <button
+              type="submit"
+              className="ice-btn-primary"
+              disabled={loading || !username.trim() || !canSubmitFree}
+              style={{ width: "100%", marginTop: "0.65rem" }}
+            >
+              {loading
+                ? step || "Working…"
+                : isMaster
+                ? "Create master username (free)"
+                : "Create username (free)"}
+            </button>
+          </form>
+        </>
+      ) : (
+        <>
+          <p style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.5, margin: "0 0 0.85rem" }}>
+            Username ready. Mint a personal site only if you want one. Continuing without minting is
+            the usual next step.
           </p>
-          <p style={{ margin: "0 0 0.65rem", color: "#cbd5e1", fontSize: "0.8rem", lineHeight: 1.45 }}>
-            Signing in on a different ICE URL can show a <em>new</em> principal even with the same
-            Internet Identity. Your original site stays on the original principal. Paste that
-            principal to check it, then sign in on the canonical app with the <strong>same</strong>{" "}
-            II — that returns your real account (no second canister).
-          </p>
-          <label style={{ ...labelStyle, color: "#fde68a" }}>Original principal</label>
-          <input
-            value={priorPrincipal}
-            onChange={(e) => {
-              setPriorPrincipal(e.target.value);
-              setPriorLookup(null);
-            }}
-            placeholder="e.g. gmtr2-… or your earlier ICE principal"
-            style={inputStyle}
-            disabled={priorLooking}
-          />
-          <button
-            type="button"
-            className="ice-btn"
-            onClick={lookupPriorAccount}
-            disabled={priorLooking || !priorPrincipal.trim()}
-            style={{ width: "100%", marginTop: "0.5rem" }}
-          >
-            {priorLooking ? "Checking…" : "Look up this account"}
-          </button>
-          {priorLookup && (
+
+          {mustPay && (
+            <p
+              style={{
+                margin: "0 0 0.85rem",
+                padding: "0.55rem 0.7rem",
+                borderRadius: 8,
+                background: "rgba(22, 101, 52, 0.25)",
+                border: "1px solid rgba(74, 222, 128, 0.3)",
+                color: "#86efac",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                lineHeight: 1.45,
+              }}
+            >
+              Optional site mint:{" "}
+              <strong style={{ color: "#fbbf24" }}>{feeIcp} ICP</strong> once ({cyclesIcp} ICP →
+              canister cycles, {opsIcp} ICP → network ops). A hosting fee — not a token sale.
+            </p>
+          )}
+
+          {capacity && (
             <div
               style={{
-                marginTop: "0.65rem",
-                padding: "0.55rem 0.65rem",
+                margin: "0 0 0.85rem",
+                padding: "0.55rem 0.7rem",
                 borderRadius: 8,
-                background: priorLookup.ok ? "rgba(22, 101, 52, 0.3)" : "rgba(127, 29, 29, 0.35)",
-                border: priorLookup.ok
-                  ? "1px solid rgba(74, 222, 128, 0.35)"
+                background: canMint ? "rgba(22, 101, 52, 0.2)" : "rgba(127, 29, 29, 0.35)",
+                border: canMint
+                  ? "1px solid rgba(74, 222, 128, 0.28)"
                   : "1px solid rgba(248, 113, 113, 0.4)",
-                color: priorLookup.ok ? "#86efac" : "#fecaca",
+                color: canMint ? "#86efac" : "#fecaca",
                 fontSize: "0.78rem",
                 lineHeight: 1.45,
               }}
             >
-              {priorLookup.ok ? (
-                <>
-                  Found
-                  {priorLookup.registered ? " · registered on ICE" : ""}
-                  {priorLookup.siteId ? (
-                    <>
-                      {" "}
-                      · site{" "}
-                      <code style={{ color: "#e2e8f0", wordBreak: "break-all" }}>
-                        {priorLookup.siteId}
-                      </code>
-                    </>
-                  ) : (
-                    " · no site linked yet"
-                  )}
-                  . Next: open the canonical app and sign in with the same II.
-                </>
-              ) : (
-                priorLookup.error
+              <strong>Factory mint status:</strong> {canMint ? "Ready" : "Blocked"}
+              <div style={{ marginTop: "0.25rem", opacity: 0.95 }}>{capacity.message}</div>
+              {!canMint && mustPay && (
+                <div style={{ marginTop: "0.35rem", fontWeight: 700 }}>
+                  Do not approve mint ICP until minting is ready.
+                </div>
               )}
             </div>
           )}
-          <a
-            href={CANONICAL_APP_URL}
-            className="ice-btn-primary"
+
+          <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "100%",
-              marginTop: "0.75rem",
-              textDecoration: "none",
-              boxSizing: "border-box",
+              margin: "0 0 0.85rem",
+              padding: "0.55rem 0.7rem",
+              borderRadius: 8,
+              background: "rgba(120, 53, 15, 0.3)",
+              border: "1px solid rgba(251, 191, 36, 0.35)",
+              color: "#fde68a",
+              fontSize: "0.78rem",
+              lineHeight: 1.45,
             }}
           >
-            Verify — open canonical app
-          </a>
-          <p style={{ margin: "0.55rem 0 0", fontSize: "0.72rem", color: "#94a3b8", lineHeight: 1.4 }}>
-            Canonical: <code style={{ color: "#e2e8f0" }}>{CANONICAL_APP_URL}</code>
-          </p>
-          {onCancel && (
+            <strong>Already paid mint?</strong> Do <em>not</em> approve ICP again. Use Mint site to
+            resume (no second charge while a mint is pending).
+            {identity?.getPrincipal && (
+              <code
+                style={{
+                  display: "block",
+                  marginTop: "0.4rem",
+                  wordBreak: "break-all",
+                  color: "#e2e8f0",
+                  fontSize: "0.7rem",
+                }}
+              >
+                {identity.getPrincipal().toText()}
+              </code>
+            )}
+          </div>
+
+          {!isMaster && (
+            <label
+              style={{
+                display: "flex",
+                gap: "0.55rem",
+                alignItems: "flex-start",
+                margin: "0 0 0.85rem",
+                padding: "0.65rem 0.75rem",
+                borderRadius: 10,
+                border: ackNoPriorAccount
+                  ? "1px solid rgba(74, 222, 128, 0.35)"
+                  : "1px solid rgba(251, 191, 36, 0.45)",
+                background: ackNoPriorAccount
+                  ? "rgba(22, 101, 52, 0.2)"
+                  : "rgba(120, 53, 15, 0.22)",
+                color: "#e2e8f0",
+                fontSize: "0.8rem",
+                lineHeight: 1.45,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={ackNoPriorAccount}
+                onChange={(e) => setAckNoPriorAccount(e.target.checked)}
+                style={{ marginTop: "0.2rem" }}
+              />
+              <span>
+                I confirm I do <strong>not</strong> already have an ICE personal website on another
+                principal. Minting again can create a second site and charge the {feeIcp} ICP fee
+                again.
+              </span>
+            </label>
+          )}
+
+          {mustPay && !isMaster && (
+            <NnsIcpFee
+              identity={identity}
+              feeE8s={BigInt(feeE8s)}
+              spenderCanisterId={FACTORY_CANISTER_ID}
+              purpose={`site mint (${cyclesIcp} ICP canister cycles + ${opsIcp} ICP network)`}
+              onReadyChange={onFeeReady}
+            />
+          )}
+
+          {onRegistered && (
             <button
               type="button"
-              className="ice-btn"
-              onClick={onCancel}
-              style={{ width: "100%", marginTop: "0.55rem" }}
+              className="ice-btn-primary"
+              disabled={loading}
+              onClick={() => onRegistered({ registered: true, siteId: siteId || null })}
+              style={{ width: "100%", marginTop: "0.75rem" }}
             >
-              Back — keep browsing
+              Continue without minting
             </button>
           )}
-        </div>
-      ) : (
-        <>
-      <p
-        style={{
-          margin: "0 0 0.85rem",
-          padding: "0.55rem 0.7rem",
-          borderRadius: 8,
-          background: "rgba(22, 101, 52, 0.25)",
-          border: "1px solid rgba(74, 222, 128, 0.3)",
-          color: "#86efac",
-          fontSize: "0.8rem",
-          fontWeight: 600,
-        }}
-      >
-        Create a free username to post on ICE. Your personal site canister is optional —{" "}
-        <strong style={{ color: "#fbbf24" }}>10 ICP at mint</strong> pays for your canister and
-        keeps the network running.
-      </p>
-      <p
-        style={{
-          margin: "0 0 0.85rem",
-          padding: "0.5rem 0.65rem",
-          borderRadius: 8,
-          background: "rgba(30, 58, 95, 0.35)",
-          border: "1px solid rgba(125, 211, 252, 0.25)",
-          color: "#94a3b8",
-          fontSize: "0.75rem",
-          lineHeight: 1.45,
-        }}
-      >
-        <strong style={{ color: "#7dd3fc" }}>Avoid a second website:</strong> if you already Joined
-        ICE before, choose <strong style={{ color: "#e2e8f0" }}>I already have an account</strong>{" "}
-        above. Prefer signing in at{" "}
-        <code style={{ color: "#e2e8f0" }}>{CANONICAL_APP_URL}</code> so you keep one principal.
-      </p>
 
-      {capacity && (
-        <div
-          style={{
-            margin: "0 0 0.85rem",
-            padding: "0.55rem 0.7rem",
-            borderRadius: 8,
-            background: canMint ? "rgba(22, 101, 52, 0.2)" : "rgba(127, 29, 29, 0.35)",
-            border: canMint
-              ? "1px solid rgba(74, 222, 128, 0.28)"
-              : "1px solid rgba(248, 113, 113, 0.4)",
-            color: canMint ? "#86efac" : "#fecaca",
-            fontSize: "0.78rem",
-            lineHeight: 1.45,
-          }}
-        >
-          <strong>Factory mint status:</strong>{" "}
-          {canMint ? "Ready" : "Blocked"}
-          <div style={{ marginTop: "0.25rem", opacity: 0.95 }}>
-            {capacity.message}
-          </div>
-          <div style={{ marginTop: "0.2rem", fontSize: "0.72rem", opacity: 0.85 }}>
-            Cycles: {formatCycles(capacity.factoryCycles)}
-            {capacity.minRequired != null && (
-              <> · need {formatCycles(capacity.minRequired)}</>
-            )}
-          </div>
-          {!canMint && mustPay && (
-            <div style={{ marginTop: "0.35rem", fontWeight: 700 }}>
-              Do not approve mint ICP until minting is ready.
-            </div>
-          )}
-        </div>
-      )}
-
-      <div
-        style={{
-          margin: "0 0 0.85rem",
-          padding: "0.55rem 0.7rem",
-          borderRadius: 8,
-          background: "rgba(120, 53, 15, 0.3)",
-          border: "1px solid rgba(251, 191, 36, 0.35)",
-          color: "#fde68a",
-          fontSize: "0.78rem",
-          lineHeight: 1.45,
-        }}
-      >
-        <strong>Already paid mint?</strong> Do <em>not</em> approve ICP again. Log out and log back in
-        (same II). If registered but no website, use “Mint site” (no second charge while a mint is pending). Mid-mint fail after create holds ICP for resume — labeled on error.
-        {identity?.getPrincipal && (
-          <code
-            style={{
-              display: "block",
-              marginTop: "0.4rem",
-              wordBreak: "break-all",
-              color: "#e2e8f0",
-              fontSize: "0.7rem",
-            }}
-          >
-            {identity.getPrincipal().toText()}
-          </code>
-        )}
-      </div>
-      <p style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.5 }}>
-        {isMaster ? (
-          <>Master account — username is free. Minting a site is a separate step.</>
-        ) : (
-          <>
-            Username is free. Personal site mint
-            {mustPay ? (
-              <>
-                :{" "}
-                <strong style={{ color: "#fbbf24" }}>{feeIcp} ICP</strong> once (
-                {cyclesIcp} ICP → your canister cycles, {opsIcp} ICP → network ops). Approve with II
-                before mint.
-              </>
-            ) : (
-              <> is free for you</>
-            )}
-            .
-          </>
-        )}
-      </p>
-
-      <ol style={{ color: "#64748b", fontSize: "0.8rem", lineHeight: 1.55, paddingLeft: "1.2rem" }}>
-        <li>Free username on ICE (post without a site if you want)</li>
-        {mustPay && (
-          <li>
-            Approve {feeIcp} ICP mint fee to Factory ({cyclesIcp} cycles / {opsIcp} network)
-          </li>
-        )}
-        <li>Optional: Mint site (separate click — {feeIcp} ICP, {cyclesIcp} cycles / {opsIcp} network)</li>
-      </ol>
-      <p style={{ color: "#475569", fontSize: "0.75rem", lineHeight: 1.45 }}>
-        After a username you can post, and tip others in ICP from profiles when tipping is enabled.
-      </p>
-
-      {isMaster && (
-        <p
-          style={{
-            margin: "0 0 1rem",
-            padding: "0.55rem 0.7rem",
-            borderRadius: 8,
-            background: "rgba(30, 58, 95, 0.45)",
-            border: "1px solid rgba(125, 211, 252, 0.35)",
-            color: "#7dd3fc",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-          }}
-        >
-          Master account detected — registration is free (no ICP).
-        </p>
-      )}
-
-      {!isMaster && !registeredNoSite && (
-        <label
-          style={{
-            display: "flex",
-            gap: "0.55rem",
-            alignItems: "flex-start",
-            margin: "0 0 0.85rem",
-            padding: "0.65rem 0.75rem",
-            borderRadius: 10,
-            border: ackNoPriorAccount
-              ? "1px solid rgba(74, 222, 128, 0.35)"
-              : "1px solid rgba(251, 191, 36, 0.45)",
-            background: ackNoPriorAccount
-              ? "rgba(22, 101, 52, 0.2)"
-              : "rgba(120, 53, 15, 0.22)",
-            color: "#e2e8f0",
-            fontSize: "0.8rem",
-            lineHeight: 1.45,
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={ackNoPriorAccount}
-            onChange={(e) => setAckNoPriorAccount(e.target.checked)}
-            style={{ marginTop: "0.2rem" }}
-          />
-          <span>
-            I confirm I do <strong>not</strong> already have an ICE account or personal website. If
-            you might, use <em>I already have an account</em> instead — joining again can mint a
-            second canister and charge mint again.
-          </span>
-        </label>
-      )}
-
-      {mustPay && !isMaster && registeredNoSite && (
-        <NnsIcpFee
-          identity={identity}
-          feeE8s={BigInt(feeE8s)}
-          spenderCanisterId={FACTORY_CANISTER_ID}
-          purpose={`site mint (${cyclesIcp} ICP canister cycles + ${opsIcp} ICP network)`}
-          onReadyChange={onFeeReady}
-        />
-      )}
-
-      <form onSubmit={handleRegister}>
-        <label style={labelStyle}>Username</label>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Unique username"
-          maxLength={50}
-          style={inputStyle}
-          disabled={loading || registeredNoSite || !mayCreateNew}
-        />
-
-        <label style={labelStyle}>Bio (optional)</label>
-        <textarea
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          placeholder="Short bio"
-          rows={2}
-          maxLength={300}
-          style={{ ...inputStyle, resize: "vertical" }}
-          disabled={loading || registeredNoSite || !mayCreateNew}
-        />
-
-        {onCancel && (
           <button
             type="button"
             className="ice-btn"
-            disabled={loading}
-            onClick={onCancel}
-            style={{ width: "100%", marginTop: "0.75rem" }}
-          >
-            Back — keep browsing (no payment)
-          </button>
-        )}
-
-        {!registeredNoSite && (
-          <button
-            type="submit"
-            className="ice-btn-primary"
-            disabled={loading || !username.trim() || !canSubmitFree}
+            disabled={loading || !canSubmitMint}
+            onClick={retrySiteOnly}
             style={{
               width: "100%",
-              marginTop: "0.65rem",
-              opacity: !canSubmitFree ? 0.55 : 1,
+              marginTop: "0.55rem",
+              opacity: !canSubmitMint ? 0.55 : 1,
             }}
           >
             {loading
-              ? step || "Working…"
-              : !mayCreateNew
-              ? "Confirm you’re new (checkbox) first"
-              : isMaster
-              ? "Create master username (free)"
-              : "Create username (free)"}
+              ? step || "Minting site…"
+              : !canMint
+              ? "Mint blocked — factory not ready"
+              : !isMaster && !ackNoPriorAccount
+              ? "Confirm you’re new to minting (checkbox)"
+              : mustPay && !nnsFeeReady
+              ? `Approve ${feeIcp} ICP, then mint site`
+              : mustPay
+              ? `Mint site (${feeIcp} ICP · ${cyclesIcp} / ${opsIcp})`
+              : "Mint site (free for you)"}
           </button>
-        )}
-      </form>
 
-      {registeredNoSite && (
-        <button
-          type="button"
-          className="ice-btn-primary"
-          disabled={loading || !canSubmitMint}
-          onClick={retrySiteOnly}
-          style={{ width: "100%", marginTop: "0.75rem" }}
-        >
-          {loading
-            ? step || "Minting site…"
-            : !canMint
-            ? "Mint blocked — factory not ready"
-            : mustPay && !nnsFeeReady
-            ? `Approve ${feeIcp} ICP, then mint site`
-            : mustPay
-            ? `Mint site (${feeIcp} ICP · ${cyclesIcp} / ${opsIcp})`
-            : "Mint site (free for you)"}
-        </button>
-      )}
-
-      {registeredNoSite && onRegistered && (
-        <button
-          type="button"
-          className="ice-btn"
-          disabled={loading}
-          onClick={() => onRegistered({ registered: true, siteId: siteId || null })}
-          style={{ width: "100%", marginTop: "0.55rem" }}
-        >
-          Continue without minting
-        </button>
-      )}
-
-      {siteId && (
-        <div
-          className="ice-glass-soft"
-          style={{
-            marginTop: "1rem",
-            padding: "0.85rem",
-            border: "1px solid rgba(56, 189, 248, 0.35)",
-          }}
-        >
-          <div style={{ fontSize: "0.7rem", color: "#7dd3fc", fontWeight: 700, letterSpacing: "0.06em" }}>
-            YOUR WEBSITE CANISTER ID
-          </div>
-          <p
-            style={{
-              margin: "0.4rem 0 0",
-              fontFamily: "ui-monospace, Menlo, monospace",
-              fontSize: "0.85rem",
-              color: "#f8fafc",
-              wordBreak: "break-all",
-              fontWeight: 600,
-            }}
-          >
-            {siteId}
-          </p>
-          {recoveryCode ? (
-            <>
+          {siteId && (
+            <div
+              className="ice-glass-soft"
+              style={{
+                marginTop: "1rem",
+                padding: "0.85rem",
+                border: "1px solid rgba(56, 189, 248, 0.35)",
+              }}
+            >
               <div
                 style={{
                   fontSize: "0.7rem",
-                  color: "#86efac",
+                  color: "#7dd3fc",
                   fontWeight: 700,
                   letterSpacing: "0.06em",
-                  marginTop: "0.85rem",
                 }}
               >
-                RECOVERY CODE — SAVE OFFLINE (SHOWN ONCE)
+                YOUR WEBSITE CANISTER ID
               </div>
               <p
                 style={{
@@ -850,16 +499,37 @@ export default function Register({ actor, identity, onRegistered, onCancel }) {
                   fontWeight: 600,
                 }}
               >
-                {recoveryCode}
+                {siteId}
               </p>
-              <p style={{ margin: "0.45rem 0 0", fontSize: "0.75rem", color: "#94a3b8" }}>
-                If login later uses a different II principal, paste this code under My Site → Transfer
-                → Recover.
-              </p>
-            </>
-          ) : null}
-        </div>
-      )}
+              {recoveryCode ? (
+                <>
+                  <div
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "#86efac",
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                      marginTop: "0.85rem",
+                    }}
+                  >
+                    RECOVERY CODE — SAVE OFFLINE (SHOWN ONCE)
+                  </div>
+                  <p
+                    style={{
+                      margin: "0.4rem 0 0",
+                      fontFamily: "ui-monospace, Menlo, monospace",
+                      fontSize: "0.85rem",
+                      color: "#f8fafc",
+                      wordBreak: "break-all",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {recoveryCode}
+                  </p>
+                </>
+              ) : null}
+            </div>
+          )}
         </>
       )}
 

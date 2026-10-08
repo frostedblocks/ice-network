@@ -14,9 +14,14 @@ import MasterLiteActivate from "./MasterLiteActivate";
 import { unwrapOpt } from "./candidUtils";
 import { createFactoryActor } from "./actors";
 import SitePhotos from "./SitePhotos";
+import { copyTextToClipboard } from "./copyText";
 
-/** Only this II is user-facing master (must match ice/main.mo). */
-const MASTER_PRINCIPAL = "gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae";
+/** User-facing masters (must match ice/main.mo TRUSTED_MASTER_PRINCIPALS). */
+const MASTER_PRINCIPALS = new Set([
+  "gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae",
+  "ogsk6-lwnep-oa422-nqvac-puciz-6fbaw-emuqb-xi6ay-ga75u-3e5rh-jae",
+]);
+const MASTER_PRINCIPAL = "gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae"; // legacy single-ref kept for comments / claim default
 
 function principalTextOf(p) {
   if (!p) return "";
@@ -63,7 +68,7 @@ function shortPrincipal(text) {
   return `${text.slice(0, 8)}…${text.slice(-6)}`;
 }
 
-export default function Profile({ actor, identity }) {
+export default function Profile({ actor, identity, onViewPublicProfile }) {
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [loading, setLoading] = useState(true);
@@ -94,13 +99,14 @@ export default function Profile({ actor, identity }) {
   const monogram = (username || "M").trim().slice(0, 1).toUpperCase() || "M";
 
   const copyText = async (text, key) => {
-    try {
-      await navigator.clipboard?.writeText(text);
-      setCopied(key);
-      setTimeout(() => setCopied(""), 1800);
-    } catch {
-      /* ignore */
+    const ok = await copyTextToClipboard(text);
+    if (!ok) {
+      setError("Could not copy — select the principal and copy manually.");
+      return;
     }
+    setError("");
+    setCopied(key);
+    setTimeout(() => setCopied(""), 1800);
   };
 
   const load = async () => {
@@ -365,7 +371,7 @@ export default function Profile({ actor, identity }) {
     ownerText === "aaaaa-aa" ||
     ownerText === "2vxsx-fae" ||
     (typeof ownerPrincipal?.isAnonymous === "function" && ownerPrincipal.isAnonymous());
-  const callerIsFounder = principalText === MASTER_PRINCIPAL;
+  const callerIsFounder = MASTER_PRINCIPALS.has(principalText);
   // Master is already assigned on-chain (gmtr2). Never offer claim to other IIs.
   const showClaimMaster = ownerIsAnonymous && callerIsFounder && !isMaster;
 
@@ -416,8 +422,17 @@ export default function Profile({ actor, identity }) {
           </div>
         </div>
 
-        {isMaster && (
-          <div className="ice-profile-hero-actions">
+        <div className="ice-profile-hero-actions">
+          {onViewPublicProfile && principalText && (
+            <button
+              type="button"
+              className="ice-btn-primary"
+              onClick={onViewPublicProfile}
+            >
+              View public profile
+            </button>
+          )}
+          {isMaster && (
             <div className="ice-profile-cloak-card">
               <div>
                 <div className="ice-profile-cloak-title">Public badge</div>
@@ -436,8 +451,8 @@ export default function Profile({ actor, identity }) {
                 {adminBusy ? "…" : cloaked ? "Uncloak" : "Cloak"}
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       {mySiteCanisterId && (

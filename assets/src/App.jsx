@@ -78,7 +78,7 @@ function isAdminLiteHash() {
  */
 const II_DERIVATION_ORIGIN = `https://${ASSETS_CANISTER_ID}.icp0.io`;
 const MASTER_APP_URL = "https://frostedblocks.com/";
-/** Standard II (what most ICP dapps use). */
+/** II with guided upgrade (passkey / Google). Keep @dfinity/auth-client + Ed25519. */
 const II_IDENTITY_PROVIDER = "https://identity.ic0.app";
 
 function currentOrigin() {
@@ -108,6 +108,7 @@ function loginDerivationOrigin() {
  */
 const TRUSTED_MASTER_PRINCIPALS = new Set([
   "gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae",
+  "ogsk6-lwnep-oa422-nqvac-puciz-6fbaw-emuqb-xi6ay-ga75u-3e5rh-jae",
 ]);
 
 const LOCAL_ID_KEY = "ice-local-ed25519-identity";
@@ -354,31 +355,11 @@ export default function App() {
         return;
       }
 
-      // Chrome flicker fix: default AuthClient idle callback does logout + location.reload(),
-      // which can loop when a stale II session is restored. Soft-clear session instead.
-      // Ed25519 session keys are JSON-serializable so Connect backend can
-      // reconstruct DelegationIdentity and verify owner proof via IC.
-      // Existing ECDSA II sessions need one re-login after this change.
+      // Disable idle logout (no 10-minute auto sign-out / reload).
+      // Ed25519 session keys stay JSON-serializable for Connect owner proof.
       const client = await AuthClient.create({
         keyType: "Ed25519",
-        idleOptions: {
-          disableDefaultIdleCallback: true,
-          onIdle: async () => {
-            try {
-              await client.logout();
-            } catch (_) {
-              /* ignore */
-            }
-            setIdentity(null);
-            setActor(null);
-            setRegistered(null);
-            setCanisterMaster(false);
-            setShowJoin(false);
-            setOwnedSites([]);
-            setActiveSiteId(null);
-            setBootError("Signed out after inactivity. Sign in again when you are ready.");
-          },
-        },
+        idleOptions: { disableIdle: true },
       });
       setAuthClient(client);
       if (await client.isAuthenticated()) {
@@ -474,8 +455,7 @@ export default function App() {
   };
 
   /**
-   * Internet Identity login — same pattern as typical ICP dapps:
-   * AuthClient + identity.ic0.app → keep session → connect actors.
+   * Internet Identity login via identity.ic0.app + AuthClient Ed25519.
    * derivationOrigin only on custom domains (www/apex), never on *.icp0.io itself.
    */
   const login = async () => {
@@ -493,7 +473,7 @@ export default function App() {
     const derivationOrigin = loginDerivationOrigin();
     const loginOpts = {
       identityProvider: II_IDENTITY_PROVIDER,
-      maxTimeToLive: BigInt(7) * BigInt(24) * BigInt(60) * BigInt(60) * BigInt(1_000_000_000),
+      maxTimeToLive: BigInt(30) * BigInt(24) * BigInt(60) * BigInt(60) * BigInt(1_000_000_000),
       windowOpenerFeatures:
         "toolbar=0,location=0,menubar=0,width=525,height=705,left=200,top=100",
       onSuccess: async () => {
@@ -961,7 +941,11 @@ export default function App() {
               }}
             />
           ) : view === "profile" ? (
-            <Profile actor={actor} identity={identity} />
+            <Profile
+              actor={actor}
+              identity={identity}
+              onViewPublicProfile={() => openUserProfile(identity.getPrincipal())}
+            />
           ) : view === "mysite" ? (
             <MySite
               identity={identity}
@@ -980,6 +964,7 @@ export default function App() {
               principal={viewingPrincipal}
               currentUserPrincipal={identity.getPrincipal()}
               onBack={goFeed}
+              onEditProfile={() => navigate("profile")}
               onUserClick={openUserProfile}
               onIcpChanged={() => setBalanceRefreshKey((k) => k + 1)}
             />
