@@ -930,16 +930,8 @@ persistent actor Ice {
     };
     for ((p, _) in userProfiles.entries()) { mark(p) };
     for ((p, _) in userBalances.entries()) { mark(p) };
-    var seenIdx = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
-    for ((_, p) in usernameIndex.entries()) {
-      switch (seenIdx.get(p)) {
-        case (?true) {};
-        case _ {
-          seenIdx.put(p, true);
-          mark(p);
-        };
-      };
-    };
+    // Do not walk usernameIndex here: held keys can still point at principals whose
+    // profiles were removed via adminDeleteProfile; re-marking them would undo that.
     for ((p, list) in following.entries()) {
       mark(p);
       for (t in list.vals()) { mark(t) };
@@ -1153,7 +1145,20 @@ persistent actor Ice {
     false
   };
 
-  /// registerInternal / setProfile only. Brand-new keys: ^[a-z0-9_]{3,30}$, not reserved.
+  /// Raw input must be ASCII A-Z / a-z / 0-9 / _ (blocks Unicode look-alikes).
+  private func isAsciiUsernameRaw(name : Text) : Bool {
+    for (c in name.chars()) {
+      let ok =
+        (c >= 'A' and c <= 'Z') or
+        (c >= 'a' and c <= 'z') or
+        (c >= '0' and c <= '9') or
+        (c == '_');
+      if (not ok) { return false };
+    };
+    true
+  };
+
+  /// registerInternal / setProfile only. Brand-new keys: ASCII raw + ^[a-z0-9_]{3,30}$, not reserved.
   private func validatePublicUsername(name : Text) : ?Text {
     if (Text.size(name) == 0) {
       return ?"Username cannot be empty";
@@ -1162,6 +1167,9 @@ persistent actor Ice {
     switch (usernameIndex.get(key)) {
       case (?_) { null };
       case null {
+        if (not isAsciiUsernameRaw(name)) {
+          return ?"Username must use ASCII letters, digits, or underscore only";
+        };
         if (not isValidUsernameCharset(key)) {
           return ?"Username must be 3–30 characters: a-z, 0-9, underscore only";
         };
@@ -1796,7 +1804,7 @@ persistent actor Ice {
     Buffer.toArray(buf)
   };
 
-  /// Master: delete a user profile + free its username. Does not delete posts.
+  /// Master: delete a user profile; its username stays held until master releaseHeldUsername.
   /// Use for duplicate/legacy II principals (e.g. old founder after owner transfer).
   /// Cannot delete the current owner principal's profile.
   public shared(msg) func adminDeleteProfile(user : Principal) : async Text {
