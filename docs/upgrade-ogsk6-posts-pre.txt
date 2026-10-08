@@ -1,0 +1,26 @@
+(
+  vec {
+    record {
+      id = 43 : nat;
+      content = "To get an Internet Identity:\n\n1. Visit [https://id.ai](https://id.ai?utm_source=gemini).\n2. Click **Create New Identity**.\n3. Choose your preferred login method: use a device passkey (Face ID, Touch ID, or security key) or link an external account like Google, Apple, or Microsoft.\n4. Complete the secure biometric or provider prompt.\n\nYou\'re done! Your account is ready for seamless, passwordless login across Web3 apps with isolated privacy per application.";
+      reportCount = 0 : nat;
+      author = principal "ogsk6-lwnep-oa422-nqvac-puciz-6fbaw-emuqb-xi6ay-ga75u-3e5rh-jae";
+      likes = 0 : nat;
+      loves = 0 : nat;
+      imageURL = null;
+      isHidden = false;
+      timestamp = 1_789_840_248_557_309_858 : int;
+    };
+    record {
+      id = 41 : nat;
+      content = "US-Denmark deal locks in permanent U.S. security control of Greenland—no cost, no China/Russia bases. All 50 states join Trump’s Medicaid most-favored-nation drug cuts. Zero illegal crossings for 16 months. Record tariff revenue. $5K dividend pledged if GOP holds Congress. America First is delivering.";
+      reportCount = 0 : nat;
+      author = principal "ogsk6-lwnep-oa422-nqvac-puciz-6fbaw-emuqb-xi6ay-ga75u-3e5rh-jae";
+      likes = 0 : nat;
+      loves = 0 : nat;
+      imageURL = null;
+      isHidden = false;
+      timestamp = 1_789_832_729_707_037_105 : int;
+    };
+  },
+)

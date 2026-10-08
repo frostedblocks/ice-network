@@ -1,6 +1,6 @@
-import type { Principal } from '@icp-sdk/core/principal';
-import type { ActorMethod } from '@icp-sdk/core/agent';
-import type { IDL } from '@icp-sdk/core/candid';
+import type { Principal } from '@dfinity/principal';
+import type { ActorMethod } from '@dfinity/agent';
+import type { IDL } from '@dfinity/candid';
 
 export interface AdminUserInfo {
   'bio' : string,
@@ -87,6 +87,15 @@ export interface TreasuryStats {
   'totalIcpReceivedE8s' : bigint,
   'paymentsEnabled' : boolean,
 }
+export interface UpgradeCounts {
+  'networkPrivate' : bigint,
+  'usernameIndex' : bigint,
+  'releaseLog' : bigint,
+  'posts' : bigint,
+  'profiles' : bigint,
+  'registered' : bigint,
+  'totalComments' : bigint,
+}
 export interface UserProfile {
   'bio' : string,
   'username' : string,
@@ -159,9 +168,10 @@ export interface _SERVICE {
   >,
   'adminSetPaymentsEnabled' : ActorMethod<[boolean], string>,
   /**
-   * / Join fee is permanently off (fee-at-mint). Cannot re-enable.
+   * / Join fee is permanently off (fee-at-mint). Rejects any attempt to enable.
    */
   'adminSetRegistrationFee' : ActorMethod<[boolean, bigint, bigint], string>,
+  'adminSetStoreCommerceEnabled' : ActorMethod<[boolean], string>,
   'adminSetTippingEnabled' : ActorMethod<[boolean], string>,
   'adminUnbanUser' : ActorMethod<[Principal], string>,
   'adminUnhidePost' : ActorMethod<[bigint], boolean>,
@@ -221,7 +231,7 @@ export interface _SERVICE {
   'ensurePaymentsLive' : ActorMethod<[], boolean>,
   'ensureRegistrationFee2Icp' : ActorMethod<[], string>,
   /**
-   * / Status only — Join fee permanently off (fee-at-mint). Cannot re-enable via adminSetRegistrationFee.
+   * / Status only — Join fee is permanently off (fee-at-mint). Cannot re-enable.
    */
   'ensureRegistrationFee5Icp' : ActorMethod<[], string>,
   'fetchNnsDepositBalance' : ActorMethod<[Principal], bigint>,
@@ -304,7 +314,7 @@ export interface _SERVICE {
    */
   'getMyTokens' : ActorMethod<[], bigint>,
   /**
-   * / Public: deposit destination for NNS-paid fees (registration / token packs).
+   * / Public: deposit destination for NNS-paid fees (legacy registration path; token packs removed).
    */
   'getNnsDepositInfo' : ActorMethod<
     [Principal],
@@ -329,7 +339,7 @@ export interface _SERVICE {
    */
   'getPostsByAuthorForViewer' : ActorMethod<[Principal, bigint], Array<Post>>,
   /**
-   * / Optional: who owns a username (for debugging / lookups).
+   * / Who owns a username (active or held). Held names still resolve to the original principal.
    */
   'getPrincipalByUsername' : ActorMethod<[string], [] | [Principal]>,
   'getProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
@@ -347,6 +357,10 @@ export interface _SERVICE {
   'getTreasuryStats' : ActorMethod<[], TreasuryStats>,
   'getUnreadMasterContactCount' : ActorMethod<[], bigint>,
   'getUnreadNotificationCount' : ActorMethod<[], bigint>,
+  /**
+   * / Controller or master only. Traps otherwise. Upgrade runbook gate.
+   */
+  'getUpgradeCounts' : ActorMethod<[], UpgradeCounts>,
   'getUserStats' : ActorMethod<
     [Principal],
     [] | [
@@ -386,6 +400,7 @@ export interface _SERVICE {
   'isPaymentsEnabled' : ActorMethod<[], boolean>,
   'isRegistered' : ActorMethod<[Principal], boolean>,
   'isRegistrationFeeEnabled' : ActorMethod<[], boolean>,
+  'isStoreCommerceEnabled' : ActorMethod<[], boolean>,
   'isTippingEnabled' : ActorMethod<[], boolean>,
   'isUserNetworkPrivate' : ActorMethod<[Principal], boolean>,
   /**
@@ -393,6 +408,17 @@ export interface _SERVICE {
    */
   'isUsernameAvailable' : ActorMethod<[string], boolean>,
   'likePost' : ActorMethod<[bigint], boolean>,
+  /**
+   * / Optional master tool: list held (non-current) usernames for a principal.
+   */
+  'listHeldUsernames' : ActorMethod<[Principal], Array<string>>,
+  /**
+   * / Public audit: name, owner, caller, timestamp (reasons omitted).
+   */
+  'listUsernameReleases' : ActorMethod<
+    [],
+    Array<[string, Principal, Principal, bigint]>
+  >,
   'lovePost' : ActorMethod<[bigint], boolean>,
   'makePost' : ActorMethod<[string, [] | [string], string], [] | [bigint]>,
   'markAllMasterContactsRead' : ActorMethod<[], string>,
@@ -403,6 +429,11 @@ export interface _SERVICE {
    * / Register with unique username. Master never pays.
    */
   'register' : ActorMethod<[string, string, string], string>,
+  /**
+   * / Master: release a held username. Refuses if name is the owner's current username.
+   * / Append-only uncapped log (no delete/edit).
+   */
+  'releaseHeldUsername' : ActorMethod<[string, string], string>,
   'reportPost' : ActorMethod<[bigint], string>,
   'searchPosts' : ActorMethod<[string], Array<Post>>,
   'setCloak' : ActorMethod<[boolean], boolean>,

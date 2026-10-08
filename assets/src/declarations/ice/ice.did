@@ -4,6 +4,16 @@ type UserProfile =
    bio: text;
    username: text;
  };
+type UpgradeCounts = 
+ record {
+   networkPrivate: nat;
+   posts: nat;
+   profiles: nat;
+   registered: nat;
+   releaseLog: nat;
+   totalComments: nat;
+   usernameIndex: nat;
+ };
 type TreasuryStats = 
  record {
    paymentsEnabled: bool;
@@ -146,9 +156,10 @@ service : {
    paidMaxLength: nat, maxCommentLength: nat, reportsToHide: nat) -> (
    text);
   adminSetPaymentsEnabled: (enabled: bool) -> (text);
-  /// Join fee is permanently off (fee-at-mint). Cannot re-enable.
+  /// Join fee is permanently off (fee-at-mint). Rejects any attempt to enable.
   adminSetRegistrationFee: (enabled: bool, feeE8s: nat, bonusTokens: 
    nat) -> (text);
+  adminSetStoreCommerceEnabled: (enabled: bool) -> (text);
   adminSetTippingEnabled: (enabled: bool) -> (text);
   adminUnbanUser: (user: principal) -> (text);
   adminUnhidePost: (postId: nat) -> (bool);
@@ -183,7 +194,7 @@ service : {
   /// One-shot / status: ensures launch migration ran, returns whether pack payments are live.
   ensurePaymentsLive: () -> (bool);
   ensureRegistrationFee2Icp: () -> (text);
-  /// Status only — Join fee permanently off (fee-at-mint). Cannot re-enable via adminSetRegistrationFee.
+  /// Status only — Join fee is permanently off (fee-at-mint). Cannot re-enable.
   ensureRegistrationFee5Icp: () -> (text);
   fetchNnsDepositBalance: (user: principal) -> (nat);
   /// Batch: which of `authors` are blocked either way vs `viewer` (for feed filtering)
@@ -241,7 +252,7 @@ service : {
   getMyIcpE8s: () -> (nat) query;
   /// Legacy name — returns prepaid ICP e8s (not soft tokens).
   getMyTokens: () -> (nat) query;
-  /// Public: deposit destination for NNS-paid fees (registration / token packs).
+  /// Public: deposit destination for NNS-paid fees (legacy registration path; token packs removed).
   getNnsDepositInfo: (user: principal) ->
    (record {
       note: text;
@@ -259,7 +270,7 @@ service : {
   /// Author posts visible to caller: self or master if detached, or anyone if not detached.
   getPostsByAuthorForViewer: (author: principal, limit: nat) ->
    (vec Post) query;
-  /// Optional: who owns a username (for debugging / lookups).
+  /// Who owns a username (active or held). Held names still resolve to the original principal.
   getPrincipalByUsername: (name: text) -> (opt principal) query;
   getProfile: (user: principal) -> (opt UserProfile) query;
   /// Public / anonymous discovery: never includes posts from detached (network-private) authors.
@@ -272,6 +283,8 @@ service : {
   getTreasuryStats: () -> (TreasuryStats) query;
   getUnreadMasterContactCount: () -> (nat) query;
   getUnreadNotificationCount: () -> (nat) query;
+  /// Controller or master only. Traps otherwise. Upgrade runbook gate.
+  getUpgradeCounts: () -> (UpgradeCounts) query;
   getUserStats: (user: principal) ->
    (opt
      record {
@@ -298,15 +311,24 @@ service : {
   isOwner: (user: principal) -> (bool) query;
   isOwnerVisible: (user: principal) -> (bool) query;
   isPaymentsEnabled: () -> (bool) query;
-  isStoreCommerceEnabled: () -> (bool) query;
-  adminSetStoreCommerceEnabled: (bool) -> (text);
   isRegistered: (user: principal) -> (bool) query;
   isRegistrationFeeEnabled: () -> (bool) query;
+  isStoreCommerceEnabled: () -> (bool) query;
   isTippingEnabled: () -> (bool) query;
   isUserNetworkPrivate: (user: principal) -> (bool) query;
   /// true if no one holds this username, or the caller already owns it.
   isUsernameAvailable: (name: text) -> (bool) query;
   likePost: (postId: nat) -> (bool);
+  /// Optional master tool: list held (non-current) usernames for a principal.
+  listHeldUsernames: (user: principal) -> (vec text) query;
+  /// Public audit: name, owner, caller, timestamp (reasons omitted).
+  listUsernameReleases: () ->
+   (vec record {
+          text;
+          principal;
+          principal;
+          int;
+        }) query;
   lovePost: (postId: nat) -> (bool);
   makePost: (content: text, imageURL: opt text, category: text) -> (opt nat);
   markAllMasterContactsRead: () -> (text);
@@ -315,6 +337,9 @@ service : {
   markNotificationRead: (id: nat) -> (text);
   /// Register with unique username. Master never pays.
   register: (username: text, bio: text, avatarURL: text) -> (text);
+  /// Master: release a held username. Refuses if name is the owner's current username.
+  /// Append-only uncapped log (no delete/edit).
+  releaseHeldUsername: (name: text, reason: text) -> (text);
   reportPost: (postId: nat) -> (text);
   searchPosts: (keyword: text) -> (vec Post) query;
   setCloak: (cloaked: bool) -> (bool);
