@@ -91,6 +91,15 @@ export const idlFactory = ({ IDL }) => {
     'totalIcpReceivedE8s' : IDL.Nat,
     'paymentsEnabled' : IDL.Bool,
   });
+  const UpgradeCounts = IDL.Record({
+    'networkPrivate' : IDL.Nat,
+    'usernameIndex' : IDL.Nat,
+    'releaseLog' : IDL.Nat,
+    'posts' : IDL.Nat,
+    'profiles' : IDL.Nat,
+    'registered' : IDL.Nat,
+    'totalComments' : IDL.Nat,
+  });
   return IDL.Service({
     'addComment' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Opt(IDL.Nat)], []),
     'adminBanUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
@@ -156,6 +165,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text],
         [],
       ),
+    'adminSetStoreCommerceEnabled' : IDL.Func([IDL.Bool], [IDL.Text], []),
     'adminSetTippingEnabled' : IDL.Func([IDL.Bool], [IDL.Text], []),
     'adminUnbanUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'adminUnhidePost' : IDL.Func([IDL.Nat], [IDL.Bool], []),
@@ -294,6 +304,7 @@ export const idlFactory = ({ IDL }) => {
     'getTreasuryStats' : IDL.Func([], [TreasuryStats], ['query']),
     'getUnreadMasterContactCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getUnreadNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
+    'getUpgradeCounts' : IDL.Func([], [UpgradeCounts], ['query']),
     'getUserStats' : IDL.Func(
         [IDL.Principal],
         [
@@ -330,14 +341,23 @@ export const idlFactory = ({ IDL }) => {
     'isOwner' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isOwnerVisible' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isPaymentsEnabled' : IDL.Func([], [IDL.Bool], ['query']),
-    'isStoreCommerceEnabled' : IDL.Func([], [IDL.Bool], ['query']),
-    'adminSetStoreCommerceEnabled' : IDL.Func([IDL.Bool], [IDL.Text], []),
     'isRegistered' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isRegistrationFeeEnabled' : IDL.Func([], [IDL.Bool], ['query']),
+    'isStoreCommerceEnabled' : IDL.Func([], [IDL.Bool], ['query']),
     'isTippingEnabled' : IDL.Func([], [IDL.Bool], ['query']),
     'isUserNetworkPrivate' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isUsernameAvailable' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'likePost' : IDL.Func([IDL.Nat], [IDL.Bool], []),
+    'listHeldUsernames' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(IDL.Text)],
+        ['query'],
+      ),
+    'listUsernameReleases' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Principal, IDL.Principal, IDL.Int))],
+        ['query'],
+      ),
     'lovePost' : IDL.Func([IDL.Nat], [IDL.Bool], []),
     'makePost' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Text), IDL.Text],
@@ -349,6 +369,7 @@ export const idlFactory = ({ IDL }) => {
     'markMasterContactRead' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'markNotificationRead' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'register' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Text], []),
+    'releaseHeldUsername' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
     'reportPost' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'searchPosts' : IDL.Func([IDL.Text], [IDL.Vec(Post)], ['query']),
     'setCloak' : IDL.Func([IDL.Bool], [IDL.Bool], []),

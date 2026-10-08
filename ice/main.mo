@@ -47,6 +47,7 @@ import Array "mo:base/Array";
 import Blob "mo:base/Blob";
 import Iter "mo:base/Iter";
 import Buffer "mo:base/Buffer";
+import Debug "mo:base/Debug";
 import Error "mo:base/Error";
 import ExperimentalCycles "mo:base/ExperimentalCycles";
 
@@ -492,6 +493,17 @@ persistent actor Ice {
     registeredAccounts : Nat;
   };
 
+  /// Controller/master-only upgrade gate counts (getUpgradeCounts).
+  type UpgradeCounts = {
+    posts : Nat;
+    totalComments : Nat;
+    profiles : Nat;
+    registered : Nat;
+    usernameIndex : Nat;
+    networkPrivate : Nat;
+    releaseLog : Nat;
+  };
+
   type Limits = {
     freeTierLimit : Nat;
     dailyLimit : Nat;
@@ -652,6 +664,8 @@ persistent actor Ice {
   private stable var postLikersEntries : [(Nat, [Principal])] = [];
   private stable var postLoversEntries : [(Nat, [Principal])] = [];
   private stable var usernameIndexEntries : [(Text, Principal)] = [];
+  /// Append-only uncapped log: (nameKey, owner, caller, reason, timestamp)
+  private stable var usernameReleaseLogEntries : [(Text, Principal, Principal, Text, Int)] = [];
   // Categories kept separate so Post type stays upgrade-compatible
   private stable var postCategoryEntries : [(Nat, Text)] = [];
   private stable var followedCategoriesEntries : [(Principal, [Text])] = [];
@@ -916,7 +930,16 @@ persistent actor Ice {
     };
     for ((p, _) in userProfiles.entries()) { mark(p) };
     for ((p, _) in userBalances.entries()) { mark(p) };
-    for ((_, p) in usernameIndex.entries()) { mark(p) };
+    var seenIdx = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+    for ((_, p) in usernameIndex.entries()) {
+      switch (seenIdx.get(p)) {
+        case (?true) {};
+        case _ {
+          seenIdx.put(p, true);
+          mark(p);
+        };
+      };
+    };
     for ((p, list) in following.entries()) {
       mark(p);
       for (t in list.vals()) { mark(t) };
@@ -1096,8 +1119,62 @@ persistent actor Ice {
     Text.toLowercase(name)
   };
 
-  /// Reserve username for user; release previous name if they are renaming.
-  /// Returns null on success, or an error message.
+  private func countKeysForUser(user : Principal) : Nat {
+    var n : Nat = 0;
+    for ((_, owner) in usernameIndex.entries()) {
+      if (Principal.equal(owner, user)) { n += 1 };
+    };
+    n
+  };
+
+  private func isValidUsernameCharset(key : Text) : Bool {
+    let n = Text.size(key);
+    if (n < 3 or n > 30) { return false };
+    for (c in key.chars()) {
+      let ok =
+        (c >= 'a' and c <= 'z') or
+        (c >= '0' and c <= '9') or
+        (c == '_');
+      if (not ok) { return false };
+    };
+    true
+  };
+
+  private func isReservedUsername(key : Text) : Bool {
+    let reserved : [Text] = [
+      "admin", "api", "u", "site", "about", "terms", "privacy", "partners",
+      "how-to-join", "landing", "well-known", "assets", "robots", "sitemap",
+      "favicon", "join", "login", "connect", "store", "ice", "support", "help",
+      "security", "www"
+    ];
+    for (r in reserved.vals()) {
+      if (r == key) { return true };
+    };
+    false
+  };
+
+  /// registerInternal / setProfile only. Brand-new keys: ^[a-z0-9_]{3,30}$, not reserved.
+  private func validatePublicUsername(name : Text) : ?Text {
+    if (Text.size(name) == 0) {
+      return ?"Username cannot be empty";
+    };
+    let key = usernameKey(name);
+    switch (usernameIndex.get(key)) {
+      case (?_) { null };
+      case null {
+        if (not isValidUsernameCharset(key)) {
+          return ?"Username must be 3–30 characters: a-z, 0-9, underscore only";
+        };
+        if (isReservedUsername(key)) {
+          return ?"That username is reserved";
+        };
+        null
+      };
+    }
+  };
+
+  /// Hold forever: never delete oldKey. Cap keysForUser >= 4 on new key.
+  /// Charset/reserved NOT enforced here (I.C.E. / Master / admin paths).
   private func claimUsername(user : Principal, newName : Text) : ?Text {
     if (Text.size(newName) == 0) {
       return ?"Username cannot be empty";
@@ -1107,35 +1184,17 @@ persistent actor Ice {
     };
     let key = usernameKey(newName);
 
-    // Who currently owns this username?
     switch (usernameIndex.get(key)) {
       case (?owner) {
         if (not Principal.equal(owner, user)) {
           return ?"Username already taken";
         };
-        // Same user keeping same name (or same key)
       };
-      case null {};
-    };
-
-    // Free previous username if renaming
-    switch (userProfiles.get(user)) {
-      case (?old) {
-        if (Text.size(old.username) > 0) {
-          let oldKey = usernameKey(old.username);
-          if (oldKey != key) {
-            switch (usernameIndex.get(oldKey)) {
-              case (?owner) {
-                if (Principal.equal(owner, user)) {
-                  usernameIndex.delete(oldKey);
-                };
-              };
-              case null {};
-            };
-          };
+      case null {
+        if (countKeysForUser(user) >= 4) {
+          return ?"Username hold limit (3 former names). Ask a master to releaseHeldUsername.";
         };
       };
-      case null {};
     };
 
     usernameIndex.put(key, user);
@@ -1749,20 +1808,11 @@ persistent actor Ice {
     switch (userProfiles.get(user)) {
       case null { return "No profile for this principal" };
       case (?pr) {
-        if (Text.size(pr.username) > 0) {
-          let key = usernameKey(pr.username);
-          switch (usernameIndex.get(key)) {
-            case (?holder) {
-              if (Principal.equal(holder, user)) { usernameIndex.delete(key) };
-            };
-            case null {};
-          };
-        };
+        // Keep usernameIndex keys (hold until master releaseHeldUsername)
         userProfiles.delete(user);
-        // Drop registration flag so they don't count as an account (Join again if they return)
         registeredUsers.delete(user);
         "Deleted profile for " # Principal.toText(user)
-          # (if (Text.size(pr.username) > 0) { " (username freed: " # pr.username # ")" } else { "" })
+          # (if (Text.size(pr.username) > 0) { " (username held: " # pr.username # ")" } else { "" })
       };
     }
   };
@@ -2060,6 +2110,10 @@ persistent actor Ice {
       return "Already registered. Use profile save to update.";
     };
 
+    switch (validatePublicUsername(username)) {
+      case (?err) { return err };
+      case null {};
+    };
     switch (claimUsername(caller, username)) {
       case (?err) { return err };
       case null {};
@@ -2089,6 +2143,10 @@ persistent actor Ice {
     if (not isUserRegistered(msg.caller) and not isMaster(msg.caller)) {
       return "Register first before saving a profile";
     };
+    switch (validatePublicUsername(username)) {
+      case (?err) { return err };
+      case null {};
+    };
     switch (claimUsername(msg.caller, username)) {
       case (?err) { return err };
       case null {};
@@ -2105,15 +2163,109 @@ persistent actor Ice {
   /// true if no one holds this username, or the caller already owns it.
   public query func isUsernameAvailable(name : Text) : async Bool {
     if (Text.size(name) == 0) { return false };
-    switch (usernameIndex.get(usernameKey(name))) {
-      case null { true };
+    let key = usernameKey(name);
+    switch (usernameIndex.get(key)) {
       case (?_) { false };
+      case null {
+        isValidUsernameCharset(key) and (not isReservedUsername(key))
+      };
     }
   };
 
-  /// Optional: who owns a username (for debugging / lookups).
+  /// Who owns a username (active or held). Held names still resolve to the original principal.
   public query func getPrincipalByUsername(name : Text) : async ?Principal {
     usernameIndex.get(usernameKey(name))
+  };
+
+  /// Public audit: name, owner, caller, timestamp (reasons omitted).
+  public query func listUsernameReleases() : async [(Text, Principal, Principal, Int)] {
+    let buf = Buffer.Buffer<(Text, Principal, Principal, Int)>(usernameReleaseLogEntries.size());
+    for ((name, owner, caller, _reason, ts) in usernameReleaseLogEntries.vals()) {
+      buf.add((name, owner, caller, ts));
+    };
+    Buffer.toArray(buf)
+  };
+
+  /// Master: release a held username. Refuses if name is the owner's current username.
+  /// Append-only uncapped log (no delete/edit).
+  public shared(msg) func releaseHeldUsername(name : Text, reason : Text) : async Text {
+    if (not isMaster(msg.caller)) { return "Not authorized" };
+    let key = usernameKey(name);
+    if (Text.size(key) == 0) { return "Username required" };
+    let why = Text.trim(reason, #char ' ');
+    if (Text.size(why) == 0) { return "Reason required" };
+    if (Text.size(why) > 200) { return "Reason too long" };
+    switch (usernameIndex.get(key)) {
+      case null { return "Username not held" };
+      case (?owner) {
+        switch (userProfiles.get(owner)) {
+          case (?pr) {
+            if (Text.size(pr.username) > 0 and usernameKey(pr.username) == key) {
+              return "Cannot release the owner's current username; rename or delete profile first";
+            };
+          };
+          case null {};
+        };
+        usernameIndex.delete(key);
+        let entry : (Text, Principal, Principal, Text, Int) = (key, owner, msg.caller, why, Time.now());
+        let buf = Buffer.Buffer<(Text, Principal, Principal, Text, Int)>(usernameReleaseLogEntries.size() + 1);
+        for (e in usernameReleaseLogEntries.vals()) { buf.add(e) };
+        buf.add(entry);
+        usernameReleaseLogEntries := Buffer.toArray(buf);
+        "Released held username: " # key
+      };
+    }
+  };
+
+  /// Optional master tool: list held (non-current) usernames for a principal.
+  public query(msg) func listHeldUsernames(user : Principal) : async [Text] {
+    if (not isMaster(msg.caller)) { return [] };
+    let current =
+      switch (userProfiles.get(user)) {
+        case (?pr) {
+          if (Text.size(pr.username) > 0) { usernameKey(pr.username) } else { "" };
+        };
+        case null { "" };
+      };
+    let buf = Buffer.Buffer<Text>(0);
+    for ((key, owner) in usernameIndex.entries()) {
+      if (Principal.equal(owner, user) and key != current) {
+        buf.add(key);
+      };
+    };
+    Buffer.toArray(buf)
+  };
+
+  /// Controller or master only. Traps otherwise. Upgrade runbook gate.
+  public query(msg) func getUpgradeCounts() : async UpgradeCounts {
+    if (not (Principal.isController(msg.caller) or isMaster(msg.caller))) {
+      Debug.trap("getUpgradeCounts: controller or master only");
+    };
+    var regCount : Nat = 0;
+    for ((p, flag) in registeredUsers.entries()) {
+      if (flag) { regCount += 1 };
+    };
+    for ((p, prof) in userProfiles.entries()) {
+      if (Text.size(prof.username) > 0) {
+        switch (registeredUsers.get(p)) {
+          case (?true) {};
+          case _ { regCount += 1 };
+        };
+      };
+    };
+    var npCount : Nat = 0;
+    for ((_, flag) in networkPrivate.entries()) {
+      if (flag) { npCount += 1 };
+    };
+    {
+      posts = posts.size();
+      totalComments = nextCommentId;
+      profiles = userProfiles.size();
+      registered = regCount;
+      usernameIndex = usernameIndex.size();
+      networkPrivate = npCount;
+      releaseLog = usernameReleaseLogEntries.size();
+    }
   };
 
   /// Master lookup result for II user search
@@ -2206,17 +2358,36 @@ persistent actor Ice {
 
     let q = usernameKey(qRaw);
     let buf = Buffer.Buffer<AdminUserInfo>(0);
+    var seen = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+
+    let addUnique = func(p : Principal) {
+      if (buf.size() >= maxN) { return };
+      switch (seen.get(p)) {
+        case (?true) {};
+        case _ {
+          seen.put(p, true);
+          buf.add(buildAdminUserInfo(p));
+        };
+      };
+    };
 
     switch (usernameIndex.get(q)) {
-      case (?p) { buf.add(buildAdminUserInfo(p)) };
+      case (?p) { addUnique(p) };
       case null {};
     };
 
     label scan for ((key, p) in usernameIndex.entries()) {
       if (buf.size() >= maxN) { break scan };
       if (key == q) { continue scan };
-      if (Text.contains(key, #text q)) {
-        buf.add(buildAdminUserInfo(p));
+      let current =
+        switch (userProfiles.get(p)) {
+          case (?pr) { usernameKey(pr.username) };
+          case null { "" };
+        };
+      if (Text.size(current) > 0) {
+        if (Text.contains(current, #text q)) { addUnique(p) };
+      } else if (Text.contains(key, #text q)) {
+        addUnique(p);
       };
     };
 
@@ -2807,9 +2978,10 @@ persistent actor Ice {
   /// Public author page: empty if author is detached (use getPostsByAuthorForViewer when logged in).
   public query func getPostsByAuthor(author : Principal, limit : Nat) : async [Post] {
     if (isNetworkPrivate(author)) { return [] };
+    let lim = if (limit > 20) { 20 } else { limit };
     let buf = Buffer.Buffer<Post>(0);
     var i : Nat = 0;
-    while (i < nextPostId and buf.size() < limit) {
+    while (i < nextPostId and buf.size() < lim) {
       let id = nextPostId - 1 - i;
       switch (posts.get(id)) {
         case (?p) {
@@ -2825,9 +2997,10 @@ persistent actor Ice {
   /// Author posts visible to caller: self or master if detached, or anyone if not detached.
   public shared query(msg) func getPostsByAuthorForViewer(author : Principal, limit : Nat) : async [Post] {
     if (not canViewNetworkPrivateAuthor(?msg.caller, author)) { return [] };
+    let lim = if (limit > 20) { 20 } else { limit };
     let buf = Buffer.Buffer<Post>(0);
     var i : Nat = 0;
-    while (i < nextPostId and buf.size() < limit) {
+    while (i < nextPostId and buf.size() < lim) {
       let id = nextPostId - 1 - i;
       switch (posts.get(id)) {
         case (?p) {
