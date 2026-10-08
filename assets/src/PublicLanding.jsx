@@ -584,6 +584,7 @@ export default function PublicLanding({ onJoin, onLogin, authClient = null, isLo
           }
           .ice-public-cta-row {
             flex-direction: row !important;
+            flex-wrap: wrap !important;
             align-items: stretch !important;
           }
           .ice-public-cta-row .ice-btn-primary,
@@ -591,17 +592,22 @@ export default function PublicLanding({ onJoin, onLogin, authClient = null, isLo
             width: auto !important;
             flex: 0 1 auto !important;
             min-width: 11rem;
+            white-space: nowrap !important;
           }
+        }
+        @media (min-width: 1200px) {
           .ice-public-steps {
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+        }
+        @media (max-width: 1199px) {
+          .ice-public-steps {
+            grid-template-columns: 1fr !important;
           }
         }
         @media (max-width: 959px) {
           .ice-public-cta-row .ice-btn-primary {
             width: 100% !important;
-          }
-          .ice-public-steps {
-            grid-template-columns: 1fr !important;
           }
         }
         .ice-public-header a:hover { color: #e2e8f0 !important; }
@@ -609,6 +615,7 @@ export default function PublicLanding({ onJoin, onLogin, authClient = null, isLo
         .ice-public-cta-row a {
           min-height: 44px;
           box-sizing: border-box;
+          white-space: nowrap;
         }
       `}</style>
     </div>
@@ -773,6 +780,7 @@ const styles = {
   ctaRowTop: {
     display: "flex",
     flexDirection: "column",
+    flexWrap: "wrap",
     gap: "0.5rem",
     marginBottom: "1.15rem",
     maxWidth: "720px",
@@ -792,6 +800,7 @@ const styles = {
     cursor: "pointer",
     textDecoration: "none",
     boxSizing: "border-box",
+    whiteSpace: "nowrap",
   },
   primaryBtnCompact: {
     display: "inline-flex",
@@ -823,6 +832,7 @@ const styles = {
     cursor: "pointer",
     textDecoration: "none",
     boxSizing: "border-box",
+    whiteSpace: "nowrap",
   },
   stepsRow: {
     listStyle: "none",
@@ -871,7 +881,7 @@ const styles = {
     lineHeight: 1.45,
     color: "#cbd5e1",
     minWidth: 0,
-    overflowWrap: "anywhere",
+    overflowWrap: "break-word",
   },
   featureRow: {
     display: "grid",
