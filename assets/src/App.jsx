@@ -696,7 +696,7 @@ export default function App() {
   // Public /u/<username> BEFORE AuthClient boot — skeleton + anon queries only.
   // Uses the same login() path (derivationOrigin unchanged). No Motoko changes.
   if (uUsername) {
-    const uActor = actor || anonActor;
+    const uActor = anonActor || actor;
     // While joining from /u CTA, show Register inside the main shell below.
     if (!(identity && showJoin)) {
       return (
@@ -722,6 +722,7 @@ export default function App() {
           <PublicUProfile
             actor={uActor}
             identity={identity}
+            authClient={authClient}
             username={uUsername}
             onJoin={loginJoin}
             onHome={() => {

@@ -1,0 +1,9 @@
+near ice-md-p:
+(/^\d+\.\s+(.+)$/);return t?t[1]:null}function nb({body:e,className:t}){if(e==null||e==="")return null;const r=String(e).split(`
+`),n=[];let i=[],s=null,a=[];const l=()=>{if(!i.length)return;const f=i.join(`
+`).trim();f&&n.push(o.jsx("p",{className:"ice-md-p",children:ms(f,`p${n.length}`)},`p-${n.length}`)),i=[]},c=()=>{if(!s||!
+
+ice-site-md: True
+ice-md-ul: True
+join space in SafeMarkdown block: False
+join newline trim in block: False

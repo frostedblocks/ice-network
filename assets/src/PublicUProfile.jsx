@@ -73,6 +73,7 @@ function UProfileSkeleton() {
 export default function PublicUProfile({
   actor,
   identity,
+  authClient,
   username: usernameProp,
   onJoin,
   onHome,
@@ -204,6 +205,8 @@ export default function PublicUProfile({
     .toLowerCase();
   const bioText = stripBioLinks(profile?.bio || "");
   const loggedOut = !identity || identity.getPrincipal?.()?.isAnonymous?.();
+  // Join CTA waits for AuthClient so login() can run (derivationOrigin unchanged).
+  const joinReady = !!authClient;
 
   const handleShare = async () => {
     const path = publicUPath(handleKey || urlUsername);
@@ -282,7 +285,12 @@ export default function PublicUProfile({
                 <p style={{ margin: "0 0 0.65rem", color: "#EAF6FF", fontWeight: 600 }}>
                   Join ICE: free username in about a minute
                 </p>
-                <button type="button" className="ice-btn-primary" onClick={handleJoin}>
+                <button
+                  type="button"
+                  className="ice-btn-primary"
+                  onClick={handleJoin}
+                  disabled={!joinReady}
+                >
                   Create my free username
                 </button>
                 <p className="ice-u-cta-sub">Secure sign-in via Internet Identity</p>
@@ -349,7 +357,12 @@ export default function PublicUProfile({
           <p className="ice-u-cta-title">
             Join {displayName} on ICE: free username in about a minute
           </p>
-          <button type="button" className="ice-btn-primary" onClick={handleJoin}>
+          <button
+            type="button"
+            className="ice-btn-primary"
+            onClick={handleJoin}
+            disabled={!joinReady}
+          >
             Create my free username
           </button>
           <p className="ice-u-cta-sub">Secure sign-in via Internet Identity</p>
