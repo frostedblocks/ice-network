@@ -38,6 +38,7 @@ import { AuthClient } from "@dfinity/auth-client";
 import { Ed25519KeyIdentity } from "@dfinity/identity";
 import {
   createIceActor,
+  createAnonymousIceActor,
   createFactoryActor,
   parsePublicSiteRoute,
   isPlatformHost,
@@ -52,6 +53,8 @@ import UserProfileView from "./UserProfileView";
 import Register from "./Register";
 import PublicLanding from "./PublicLanding";
 import PublicSite from "./PublicSite";
+import PublicUProfile from "./PublicUProfile";
+import PublicProfileNotice from "./PublicProfileNotice";
 import MySite from "./MySite";
 import NotificationBell from "./NotificationBell";
 import FirstLoginChecklist, {
@@ -61,6 +64,7 @@ import FirstLoginChecklist, {
 import AdminLite from "./AdminLite";
 import SitePicker, { readPreferredSite, writePreferredSite } from "./SitePicker";
 import PrincipalMigrationClaim from "./PrincipalMigrationClaim";
+import { consumeReturnTo, parseUUsername } from "./uProfile";
 
 function isAdminLiteHash() {
   try {
@@ -170,10 +174,13 @@ export default function App() {
   const [ownedSites, setOwnedSites] = useState([]);
   const [activeSiteId, setActiveSiteId] = useState(null);
   const [showSitePicker, setShowSitePicker] = useState(false);
+  const [uUsername, setUUsername] = useState(() => parseUUsername());
+  const [anonActor, setAnonActor] = useState(null);
 
   useEffect(() => {
     const sync = () => {
       setPublicSiteRoute(parsePublicSiteRoute());
+      setUUsername(parseUUsername());
       if (isAdminLiteHash()) setView("admin-lite");
     };
     window.addEventListener("hashchange", sync);
@@ -183,6 +190,26 @@ export default function App() {
       window.removeEventListener("popstate", sync);
     };
   }, []);
+
+  // Anonymous ice actor for logged-out /u/ pages (public queries only).
+  useEffect(() => {
+    if (!uUsername || identity) {
+      setAnonActor(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const a = await createAnonymousIceActor();
+        if (!cancelled) setAnonActor(a);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [uUsername, identity]);
 
   // After II login / reload, restore hidden Lite admin if the hash is present.
   useEffect(() => {
@@ -501,6 +528,12 @@ export default function App() {
             setShowJoin(true);
           } else {
             setShowJoin(false);
+            // Returning visitor from /u Join CTA who already has an account
+            const back = consumeReturnTo();
+            if (back) {
+              window.location.assign(back);
+              return;
+            }
           }
           await resolveOwnedSites(id);
           setBootError("");
@@ -666,6 +699,59 @@ export default function App() {
     );
   }
 
+  // Public /u/<username> — path route for logged-out and logged-in visitors.
+  // Uses the same login() path (derivationOrigin unchanged). No Motoko changes.
+  if (uUsername) {
+    const uActor = actor || anonActor;
+    if (!uActor) {
+      return (
+        <div className="ice-app">
+          <div className="ice-loading">Loading profile…</div>
+        </div>
+      );
+    }
+    // While joining from /u CTA, show Register inside the main shell below.
+    if (!(identity && showJoin)) {
+      return (
+        <>
+          {bootError && (
+            <div
+              className="ice-alert-error"
+              style={{
+                position: "fixed",
+                top: "1rem",
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 50,
+                maxWidth: "32rem",
+                width: "calc(100% - 2rem)",
+                marginBottom: 0,
+              }}
+            >
+              <strong>Sign in</strong>
+              <div style={{ marginTop: "0.35rem" }}>{bootError}</div>
+            </div>
+          )}
+          <PublicUProfile
+            actor={uActor}
+            identity={identity}
+            username={uUsername}
+            onJoin={loginJoin}
+            onHome={() => {
+              try {
+                window.history.pushState(null, "", "/");
+              } catch {
+                window.location.href = "/";
+                return;
+              }
+              setUUsername(null);
+            }}
+          />
+        </>
+      );
+    }
+  }
+
   if (!identity) {
     return (
       <>
@@ -801,6 +887,10 @@ export default function App() {
             </div>
           )}
 
+          {accountReady && actor && identity && (
+            <PublicProfileNotice actor={actor} identity={identity} />
+          )}
+
           {registered === null && !isMasterSession ? (
             <div className="ice-loading">Checking account…</div>
           ) : !accountReady && showJoin ? (
@@ -817,6 +907,11 @@ export default function App() {
                   return;
                 }
                 setShowJoin(false);
+                const back = consumeReturnTo();
+                if (back) {
+                  window.location.assign(back);
+                  return;
+                }
                 const p = identity?.getPrincipal?.();
                 if (p) enrollFirstLogin(p, { usernameDone: true });
                 // Checklist needs Home; My Site stays in nav

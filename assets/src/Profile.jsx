@@ -423,7 +423,15 @@ export default function Profile({ actor, identity, onViewPublicProfile }) {
         </div>
 
         <div className="ice-profile-hero-actions">
-          {onViewPublicProfile && principalText && (
+          {username ? (
+            <a
+              href={`/u/${encodeURIComponent(username)}`}
+              className="ice-btn-primary"
+              style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+            >
+              View public profile
+            </a>
+          ) : onViewPublicProfile && principalText ? (
             <button
               type="button"
               className="ice-btn-primary"
@@ -431,7 +439,7 @@ export default function Profile({ actor, identity, onViewPublicProfile }) {
             >
               View public profile
             </button>
-          )}
+          ) : null}
           {isMaster && (
             <div className="ice-profile-cloak-card">
               <div>

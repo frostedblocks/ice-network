@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { unwrapOpt } from "./candidUtils";
+import { publicUPath } from "./uProfile";
 
 /**
  * Avatar + username. Shows Founder badge only when master is not cloaked.
+ * When a username is known, links to /u/<username> for every visitor.
  */
 export default function Username({ actor, principal, size = 28, onClick }) {
   const [profile, setProfile] = useState(null);
@@ -29,25 +31,27 @@ export default function Username({ actor, principal, size = 28, onClick }) {
   }, [actor, principal]);
 
   const name = profile?.username || null;
+  const href = name ? publicUPath(name) : null;
 
   const handleClick = (e) => {
+    if (href) {
+      // Real navigation to /u/ so logged-out hard refresh and share work.
+      // Allow modified clicks (new tab) to use default <a> behavior.
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) {
+        return;
+      }
+      e.stopPropagation();
+      return;
+    }
     if (onClick) {
+      e.preventDefault();
       e.stopPropagation();
       onClick(principal);
     }
   };
 
-  return (
-    <span
-      onClick={handleClick}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "0.45rem",
-        cursor: onClick ? "pointer" : "default",
-      }}
-      title={onClick ? "View profile" : undefined}
-    >
+  const inner = (
+    <>
       <div
         style={{
           width: size,
@@ -92,6 +96,34 @@ export default function Username({ actor, principal, size = 28, onClick }) {
           Founder
         </span>
       )}
+    </>
+  );
+
+  const wrapStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.45rem",
+    cursor: href || onClick ? "pointer" : "default",
+    textDecoration: "none",
+    color: "inherit",
+  };
+
+  if (href) {
+    return (
+      <a href={href} onClick={handleClick} style={wrapStyle} title="View public profile">
+        {inner}
+      </a>
+    );
+  }
+
+  return (
+    <span
+      onClick={handleClick}
+      style={wrapStyle}
+      title={onClick ? "View profile" : undefined}
+      role={onClick ? "button" : undefined}
+    >
+      {inner}
     </span>
   );
 }

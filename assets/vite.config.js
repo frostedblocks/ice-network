@@ -114,6 +114,11 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    port: 4173,
+    // SPA fallback so /u/<username> serves index.html locally (IC assets do this natively).
+  },
+  appType: "spa",
   define: {
     global: "window",
     "process.env": JSON.stringify({}),

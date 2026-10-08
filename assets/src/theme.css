@@ -2117,3 +2117,213 @@ body {
     right: 0.85rem;
   }
 }
+
+/* —— Public /u/<username> —— */
+.ice-u-page {
+  min-height: 100vh;
+  padding-bottom: 7rem;
+}
+
+.ice-u-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem 1rem 2rem;
+}
+
+.ice-u-header-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.ice-u-home-link {
+  color: #8B9BB4;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.ice-u-home-link:hover {
+  color: #EAF6FF;
+}
+
+.ice-u-card {
+  background: rgba(15, 17, 28, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 16px;
+  padding: 1.15rem 1.2rem;
+  margin-bottom: 1.25rem;
+}
+
+.ice-u-hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.ice-u-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(125, 211, 252, 0.15);
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #7DD3FC;
+  flex-shrink: 0;
+}
+
+.ice-u-hero-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ice-u-name {
+  margin: 0;
+  font-size: 1.45rem;
+  color: #EAF6FF;
+  letter-spacing: -0.02em;
+}
+
+.ice-u-handle {
+  margin: 0.15rem 0 0;
+  color: #8B9BB4;
+  font-size: 0.92rem;
+}
+
+.ice-u-bio {
+  margin: 0.65rem 0 0;
+  color: #CBD5E1;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ice-u-share {
+  flex-shrink: 0;
+}
+
+.ice-u-posts-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  color: #EAF6FF;
+}
+
+.ice-u-post-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ice-u-post {
+  background: rgba(15, 17, 28, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+}
+
+.ice-u-post-body {
+  margin: 0;
+  color: #CBD5E1;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ice-u-post-time {
+  display: block;
+  margin-top: 0.45rem;
+  font-size: 0.75rem;
+  color: #8B9BB4;
+}
+
+.ice-u-cta-sticky {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  padding: 0.85rem 1rem 1.1rem;
+  background: rgba(7, 7, 11, 0.92);
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  backdrop-filter: blur(10px);
+  text-align: center;
+}
+
+.ice-u-cta-inline {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.ice-u-cta-title {
+  margin: 0 0 0.55rem;
+  color: #EAF6FF;
+  font-weight: 650;
+  font-size: 0.95rem;
+}
+
+.ice-u-cta-sub {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  color: #8B9BB4;
+}
+
+.ice-u-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  background: rgba(14, 16, 28, 0.65);
+  color: #CBD5E1;
+}
+
+.ice-u-notice-body {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.ice-u-notice-linkbtn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #7DD3FC;
+  cursor: pointer;
+  text-decoration: underline;
+  font: inherit;
+}
+
+.ice-u-explainer {
+  margin-top: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(9, 9, 11, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  font-size: 0.82rem;
+  color: #8B9BB4;
+  line-height: 1.45;
+}
+
+.ice-u-explainer p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ice-u-page * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
