@@ -55,6 +55,7 @@ import PublicLanding from "./PublicLanding";
 import PublicSite from "./PublicSite";
 import PublicUProfile from "./PublicUProfile";
 import PublicProfileNotice from "./PublicProfileNotice";
+import WelcomeNotice from "./WelcomeNotice";
 import MySite from "./MySite";
 import NotificationBell from "./NotificationBell";
 import FirstLoginChecklist, {
@@ -775,6 +776,7 @@ export default function App() {
         <PublicLanding
           onJoin={loginJoin}
           onLogin={loginSignIn}
+          authClient={authClient}
           isLocal={isLocalNetwork()}
         />
       </>
@@ -884,7 +886,10 @@ export default function App() {
           )}
 
           {accountReady && actor && identity && (
-            <PublicProfileNotice actor={actor} identity={identity} />
+            <>
+              <WelcomeNotice actor={actor} identity={identity} />
+              <PublicProfileNotice actor={actor} identity={identity} />
+            </>
           )}
 
           {registered === null && !isMasterSession ? (

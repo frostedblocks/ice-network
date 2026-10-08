@@ -20,6 +20,7 @@ export default function PublicProfileNotice({ actor, identity }) {
   })();
 
   const [username, setUsername] = useState(null);
+  const [hasPosts, setHasPosts] = useState(false);
   const [showExplainer, setShowExplainer] = useState(false);
   const [dismissed, setDismissed] = useState(() =>
     isPublicProfileNoticeDismissed(principalText)
@@ -32,7 +33,22 @@ export default function PublicProfileNotice({ actor, identity }) {
       try {
         const raw = await actor.getProfile(principal);
         const p = unwrapOpt(raw);
-        if (!cancelled && p?.username) setUsername(String(p.username));
+        if (!p?.username) return;
+        let posts = [];
+        try {
+          if (actor.getPostsByAuthorForViewer) {
+            posts = await actor.getPostsByAuthorForViewer(principal, 1);
+          } else {
+            posts = await actor.getPostsByAuthor(principal, 1);
+          }
+        } catch {
+          posts = [];
+        }
+        if (!cancelled) {
+          setUsername(String(p.username));
+          // Zero-post first-run is handled by WelcomeNotice.
+          setHasPosts(Array.isArray(posts) && posts.length > 0);
+        }
       } catch {
         /* ignore */
       }
@@ -47,7 +63,7 @@ export default function PublicProfileNotice({ actor, identity }) {
     [username]
   );
 
-  if (dismissed || !principalText || !username || !path) return null;
+  if (dismissed || !principalText || !username || !path || !hasPosts) return null;
 
   return (
     <div className="ice-u-notice" role="status">

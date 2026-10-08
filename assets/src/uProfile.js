@@ -112,6 +112,34 @@ export function dismissPublicProfileNotice(principalText) {
   }
 }
 
+const WELCOME_NOTICE_KEY_PREFIX = "ice-welcome-notice-dismissed:";
+
+function welcomeNoticeStorageKey(principalText) {
+  const p = String(principalText || "").trim();
+  if (!p) return null;
+  return WELCOME_NOTICE_KEY_PREFIX + p;
+}
+
+export function isWelcomeNoticeDismissed(principalText) {
+  const key = welcomeNoticeStorageKey(principalText);
+  if (!key) return true;
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function dismissWelcomeNotice(principalText) {
+  const key = welcomeNoticeStorageKey(principalText);
+  if (!key) return;
+  try {
+    localStorage.setItem(key, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Strip URLs and HTML-ish markup from bio for noindex public pages. */
 export function stripBioLinks(bio) {
   let s = String(bio || "");

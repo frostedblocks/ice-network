@@ -75,7 +75,7 @@ async function loadCategories(a, arr) {
 /**
  * Pre-login public experience: feed preview + account CTAs.
  */
-export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
+export default function PublicLanding({ onJoin, onLogin, authClient = null, isLocal = false }) {
   const feedRef = useRef(null);
   const baselineNewestRef = useRef(null);
   const [actor, setActor] = useState(null);
@@ -204,6 +204,8 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
   };
   const createAccount = continueWithII;
   const signIn = continueWithII;
+  // Primary CTA waits for AuthClient (same gate as /u Join).
+  const joinReady = !!authClient;
 
   const loadComments = async (postId) => {
     const key = postIdKey(postId);
@@ -260,7 +262,7 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
               About
             </a>
             <button type="button" onClick={continueWithII} style={styles.loginBtn}>
-              {isLocal ? "Continue (local)" : "Continue with Internet Identity"}
+              {isLocal ? "Continue (local)" : "Sign in"}
             </button>
           </div>
         </header>
@@ -269,42 +271,51 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
           <section className="ice-public-hero" style={styles.heroCol}>
             <div style={styles.glass}>
               <div style={styles.accentLine} />
-              <p style={styles.eyebrow}>Free username on ICE</p>
               <h1 style={styles.h1}>
-                <span style={styles.h1Grad}>Post without a wallet.</span>
+                Your name. Your page. On-chain, forever free.
               </h1>
               <p style={styles.tagline}>
-                A public feed on the Internet Computer. Create a free username in about a minute. A
-                personal site is optional, later.
+                Get a free ICE username and public profile in about a minute. Sign in with Internet
+                Identity — no passwords, no email.
               </p>
 
-              <div style={styles.ctaRowTop}>
-                <button type="button" onClick={continueWithII} style={styles.primaryBtn}>
-                  {isLocal ? "Continue (local)" : "Continue with Internet Identity"}
+              <div className="ice-public-cta-row" style={styles.ctaRowTop}>
+                <button
+                  type="button"
+                  className="ice-btn-primary"
+                  onClick={continueWithII}
+                  disabled={!joinReady}
+                  style={{
+                    ...styles.primaryBtn,
+                    opacity: joinReady ? 1 : 0.45,
+                    cursor: joinReady ? "pointer" : "default",
+                  }}
+                  title={joinReady ? undefined : "Preparing sign-in…"}
+                >
+                  {isLocal ? "Continue (local)" : "Claim my free username"}
                 </button>
-                <button type="button" onClick={exploreFeed} style={styles.secondaryBtn}>
-                  Explore the public feed
-                </button>
+                <a href="/u/wood" style={styles.secondaryBtn}>
+                  See an example
+                </a>
               </div>
 
-              <div className="ice-public-features" style={styles.featureRow}>
-                <div style={styles.featureCard}>
-                  <div style={styles.featureTitle}>Post</div>
-                  <div style={styles.featureText}>Share updates that live with the network.</div>
-                </div>
-                <div style={styles.featureCard}>
-                  <div style={styles.featureTitle}>Profile</div>
-                  <div style={styles.featureText}>A public username and bio on the network.</div>
-                </div>
-                <div style={styles.featureCard}>
-                  <div style={styles.featureTitle}>Optional site</div>
-                  <div style={styles.featureText}>Add a personal site on the Internet Computer when you want one — not required to start.</div>
-                </div>
-                <div style={styles.featureCard}>
-                  <div style={styles.featureTitle}>ICP tips</div>
-                  <div style={styles.featureText}>Tip someone in ICP from their profile when tipping is on.</div>
-                </div>
-              </div>
+              <ol className="ice-public-steps" style={styles.stepsRow}>
+                <li style={styles.stepCard}>
+                  <div style={styles.stepNum}>1</div>
+                  <div style={styles.stepTitle}>Sign in</div>
+                  <div style={styles.stepText}>Internet Identity, passkey or Google/Apple.</div>
+                </li>
+                <li style={styles.stepCard}>
+                  <div style={styles.stepNum}>2</div>
+                  <div style={styles.stepTitle}>Pick your @handle</div>
+                  <div style={styles.stepText}>Lowercase letters, numbers, underscores.</div>
+                </li>
+                <li style={styles.stepCard}>
+                  <div style={styles.stepNum}>3</div>
+                  <div style={styles.stepTitle}>Post and share</div>
+                  <div style={styles.stepText}>Your page lives at frostedblocks.com/u/you.</div>
+                </li>
+              </ol>
 
               <p style={styles.supportJargon}>
                 Built as an ICP social app on the Internet Computer. Technical details stay optional —
@@ -321,7 +332,7 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
                   <li>Public posts are visible to everyone.</li>
                 </ul>
                 <button type="button" onClick={continueWithII} style={styles.primaryBtnCompact}>
-                  {isLocal ? "Continue (local)" : "Continue with Internet Identity"}
+                  {isLocal ? "Continue (local)" : "Claim my free username"}
                 </button>
               </div>
 
@@ -571,14 +582,41 @@ export default function PublicLanding({ onJoin, onLogin, isLocal = false }) {
             gap: 1.35rem !important;
             align-items: start !important;
           }
+          .ice-public-cta-row {
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            align-items: stretch !important;
+          }
+          .ice-public-cta-row .ice-btn-primary,
+          .ice-public-cta-row a {
+            width: auto !important;
+            flex: 0 1 auto !important;
+            min-width: 11rem;
+            white-space: nowrap !important;
+          }
         }
-        @media (max-width: 720px) {
-          .ice-public-features { grid-template-columns: 1fr 1fr !important; }
+        @media (min-width: 1200px) {
+          .ice-public-steps {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
         }
-        @media (max-width: 480px) {
-          .ice-public-features { grid-template-columns: 1fr !important; }
+        @media (max-width: 1199px) {
+          .ice-public-steps {
+            grid-template-columns: 1fr !important;
+          }
+        }
+        @media (max-width: 959px) {
+          .ice-public-cta-row .ice-btn-primary {
+            width: 100% !important;
+          }
         }
         .ice-public-header a:hover { color: #e2e8f0 !important; }
+        .ice-public-cta-row .ice-btn-primary,
+        .ice-public-cta-row a {
+          min-height: 44px;
+          box-sizing: border-box;
+          white-space: nowrap;
+        }
       `}</style>
     </div>
   );
@@ -708,10 +746,13 @@ const styles = {
   },
   h1: {
     margin: "0 0 0.65rem",
-    fontSize: "clamp(2rem, 4.5vw, 2.7rem)",
+    fontSize: "clamp(1.85rem, 4.2vw, 2.55rem)",
     fontWeight: 800,
     letterSpacing: "-0.035em",
-    lineHeight: 1.08,
+    lineHeight: 1.12,
+    color: "#EAF6FF",
+    maxWidth: "720px",
+    textAlign: "left",
   },
   h1Grad: {
     display: "block",
@@ -725,27 +766,31 @@ const styles = {
     marginTop: "0.15rem",
     fontSize: "0.72em",
     fontWeight: 700,
-    color: "#e2e8f0",
+    color: "#EAF6FF",
   },
   tagline: {
     margin: "0 0 1rem",
     fontSize: "1.02rem",
     fontWeight: 500,
-    color: "#94a3b8",
+    color: "#cbd5e1",
     lineHeight: 1.55,
-    maxWidth: "34rem",
+    maxWidth: "720px",
+    textAlign: "left",
   },
   ctaRowTop: {
     display: "flex",
     flexDirection: "column",
+    flexWrap: "wrap",
     gap: "0.5rem",
-    marginBottom: "1rem",
+    marginBottom: "1.15rem",
+    maxWidth: "720px",
   },
   primaryBtn: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
+    minHeight: 44,
     padding: "0.85rem 1.25rem",
     border: "none",
     borderRadius: "0.95rem",
@@ -753,8 +798,9 @@ const styles = {
     fontWeight: 750,
     color: "#0f172a",
     cursor: "pointer",
-    background: "linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #a78bfa 100%)",
-    boxShadow: "0 6px 28px rgba(129, 140, 248, 0.38)",
+    textDecoration: "none",
+    boxSizing: "border-box",
+    whiteSpace: "nowrap",
   },
   primaryBtnCompact: {
     display: "inline-flex",
@@ -775,14 +821,67 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
+    minHeight: 44,
     padding: "0.75rem 1.15rem",
     borderRadius: "0.95rem",
-    border: "1px solid rgba(148, 163, 184, 0.28)",
+    border: "1px solid rgba(125, 211, 252, 0.35)",
     background: "rgba(9, 9, 11, 0.45)",
-    color: "#e2e8f0",
+    color: "#7dd3fc",
     fontSize: "0.92rem",
     fontWeight: 650,
     cursor: "pointer",
+    textDecoration: "none",
+    boxSizing: "border-box",
+    whiteSpace: "nowrap",
+  },
+  stepsRow: {
+    listStyle: "none",
+    margin: "0 0 0.95rem",
+    padding: 0,
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "0.5rem",
+    maxWidth: "720px",
+  },
+  stepCard: {
+    padding: "0.75rem 0.8rem",
+    borderRadius: 12,
+    border: "1px solid rgba(148, 163, 184, 0.14)",
+    background: "rgba(9, 9, 11, 0.35)",
+    display: "grid",
+    gridTemplateColumns: "auto minmax(0, 1fr)",
+    gridTemplateRows: "auto auto",
+    columnGap: "0.65rem",
+    rowGap: "0.15rem",
+    alignItems: "start",
+    minWidth: 0,
+  },
+  stepNum: {
+    gridRow: "1 / span 2",
+    width: "1.55rem",
+    height: "1.55rem",
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "0.78rem",
+    fontWeight: 800,
+    color: "#0f172a",
+    background: "#7dd3fc",
+    marginTop: "0.1rem",
+  },
+  stepTitle: {
+    fontSize: "0.88rem",
+    fontWeight: 750,
+    color: "#EAF6FF",
+    minWidth: 0,
+  },
+  stepText: {
+    fontSize: "0.78rem",
+    lineHeight: 1.45,
+    color: "#cbd5e1",
+    minWidth: 0,
+    overflowWrap: "break-word",
   },
   featureRow: {
     display: "grid",
@@ -799,10 +898,10 @@ const styles = {
   featureTitle: {
     fontSize: "0.78rem",
     fontWeight: 750,
-    color: "#e2e8f0",
+    color: "#EAF6FF",
     marginBottom: "0.2rem",
   },
-  featureText: { fontSize: "0.7rem", lineHeight: 1.4, color: "#64748b" },
+  featureText: { fontSize: "0.7rem", lineHeight: 1.4, color: "#cbd5e1" },
   supportJargon: {
     margin: "0 0 0.9rem",
     fontSize: "0.75rem",

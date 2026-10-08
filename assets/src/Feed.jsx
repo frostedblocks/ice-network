@@ -244,10 +244,9 @@ export default function Feed({ actor, currentUserPrincipal, onUserClick, refresh
           {isSearch ? (
             <p>No posts matched your search.</p>
           ) : (
-            <>
-              <p style={{ fontSize: "1.1rem", marginBottom: "0.4rem" }}>No posts yet</p>
-              <p style={{ fontSize: "0.9rem" }}>Be the first to say something.</p>
-            </>
+            <p style={{ fontSize: "1.05rem", margin: 0 }}>
+              Nothing here yet. Tell people what you're building.
+            </p>
           )}
         </div>
       )}
