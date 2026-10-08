@@ -1,0 +1,92 @@
+{
+  "timings": [
+    {
+      "label": "before-live-cold",
+      "url": "https://frostedblocks.com/u/wood",
+      "skeletonMs": 1025,
+      "timeToContentMs": 3174,
+      "title": "ICE Network | Free username on the Internet Computer",
+      "handle": "@Wood",
+      "hasMdLink": false,
+      "hasSticky": true
+    },
+    {
+      "label": "after-local-cold",
+      "url": "http://127.0.0.1:4173/u/wood",
+      "skeletonMs": 320,
+      "timeToContentMs": 1661,
+      "title": "Wood (@wood) · ICE Network",
+      "handle": "@wood",
+      "hasMdLink": true,
+      "hasSticky": true
+    }
+  ],
+  "shots": [
+    {
+      "tag": "u-wood-skeleton-1280",
+      "title": "Loading… · ICE Network"
+    },
+    {
+      "tag": "u-wood-1280",
+      "title": "Wood (@wood) · ICE Network",
+      "handle": "@wood"
+    },
+    {
+      "tag": "u-wood-skeleton-390",
+      "title": "Loading… · ICE Network"
+    },
+    {
+      "tag": "u-wood-390",
+      "title": "Wood (@wood) · ICE Network",
+      "handle": "@wood"
+    },
+    {
+      "tag": "u-wood-loaded-1280",
+      "title": "Wood (@wood) · ICE Network",
+      "handle": "@wood"
+    },
+    {
+      "tag": "u-wood-loaded-390",
+      "title": "Wood (@wood) · ICE Network",
+      "handle": "@wood"
+    },
+    {
+      "tag": "u-missing-1280",
+      "title": "Profile not found · ICE Network",
+      "handle": null
+    },
+    {
+      "tag": "u-missing-390",
+      "title": "Profile not found · ICE Network",
+      "handle": null
+    },
+    {
+      "tag": "u-walter-1280",
+      "title": "Walter L. Wood (@walter l. wood) · ICE Network",
+      "handle": "@walter l. wood"
+    },
+    {
+      "tag": "u-walter-390",
+      "title": "Walter L. Wood (@walter l. wood) · ICE Network",
+      "handle": "@walter l. wood"
+    }
+  ],
+  "titles": {
+    "wood": {
+      "title": "Wood (@wood) · ICE Network",
+      "handle": "@wood",
+      "name": "Wood"
+    },
+    "missing": {
+      "title": "Profile not found · ICE Network",
+      "handle": null,
+      "name": null
+    },
+    "walter": {
+      "title": "Walter L. Wood (@walter l. wood) · ICE Network",
+      "handle": "@walter l. wood",
+      "name": "Walter L. Wood"
+    },
+    "loading": "Loading… · ICE Network"
+  }
+}

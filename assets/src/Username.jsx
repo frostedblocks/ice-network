@@ -31,7 +31,8 @@ export default function Username({ actor, principal, size = 28, onClick }) {
   }, [actor, principal]);
 
   const name = profile?.username || null;
-  const href = name ? publicUPath(name) : null;
+  // href uses normalized usernameIndex key (lowercase); display keeps original casing.
+  const href = name ? publicUPath(String(name).trim().toLowerCase()) : null;
 
   const handleClick = (e) => {
     if (href) {

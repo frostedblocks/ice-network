@@ -5,6 +5,7 @@ import {
   createAnonymousIceActor,
 } from "./actors";
 import { fetchStoreCommerceEnabled } from "./storeCommerce";
+import SafeMarkdown from "./SafeMarkdown";
 
 const CONNECT_ORIGIN = String(import.meta.env.VITE_CONNECT_API_ORIGIN || "").replace(/\/$/, "");
 const CONNECT_SETUP_MSG =
@@ -26,71 +27,6 @@ function pairVal(entry) {
 
 function isLikelyCanisterId(s) {
   return typeof s === "string" && /^[a-z0-9]{5}-[a-z0-9-]+$/i.test(s.trim()) && s.length > 20;
-}
-
-/** Lightweight markdown-ish renderer (no deps). */
-function renderBody(body) {
-  if (!body) return null;
-  const lines = String(body).split("\n");
-  const blocks = [];
-  let para = [];
-
-  const flushPara = () => {
-    if (!para.length) return;
-    const text = para.join(" ").trim();
-    if (text) {
-      blocks.push(
-        <p key={`p-${blocks.length}`} style={styles.para}>
-          {text}
-        </p>
-      );
-    }
-    para = [];
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const t = line.trim();
-    if (!t) {
-      flushPara();
-      continue;
-    }
-    if (t === "---" || t === "***") {
-      flushPara();
-      blocks.push(<hr key={`hr-${blocks.length}`} style={styles.hr} />);
-      continue;
-    }
-    if (t.startsWith("### ")) {
-      flushPara();
-      blocks.push(
-        <h3 key={`h3-${blocks.length}`} style={styles.h3}>
-          {t.slice(4)}
-        </h3>
-      );
-      continue;
-    }
-    if (t.startsWith("## ")) {
-      flushPara();
-      blocks.push(
-        <h2 key={`h2-${blocks.length}`} style={styles.h2}>
-          {t.slice(3)}
-        </h2>
-      );
-      continue;
-    }
-    if (t.startsWith("# ")) {
-      flushPara();
-      blocks.push(
-        <h1 key={`h1-${blocks.length}`} style={styles.h1}>
-          {t.slice(2)}
-        </h1>
-      );
-      continue;
-    }
-    para.push(t);
-  }
-  flushPara();
-  return blocks.length ? blocks : <p style={styles.para}>{body}</p>;
 }
 
 function formatTime(ts) {
@@ -759,7 +695,7 @@ export default function PublicSite({
             {activePage.id !== "profile" && (
               <h2 style={styles.pageTitle}>{activePage.title || activePage.id}</h2>
             )}
-            <div style={styles.pageBody}>{renderBody(activePage.body)}</div>
+            <div style={styles.pageBody}><SafeMarkdown body={activePage.body} /></div>
           </article>
         ) : (
           <div className="ice-empty ice-glass-soft">No pages on this site yet.</div>
