@@ -1,0 +1,9 @@
+# ICE Network — frostedblocks.com
+# Never disallow /.well-known/ (II alternative origins + app metadata).
+
+User-agent: *
+Allow: /
+Allow: /u/
+Allow: /.well-known/
+
+Sitemap: https://frostedblocks.com/sitemap.xml
