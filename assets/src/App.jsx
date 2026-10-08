@@ -191,12 +191,14 @@ export default function App() {
     };
   }, []);
 
-  // Anonymous ice actor for logged-out /u/ pages (public queries only).
+  // Anonymous ice actor for /u/ public queries — start immediately, do not wait on II/AuthClient.
   useEffect(() => {
-    if (!uUsername || identity) {
+    if (!uUsername) {
       setAnonActor(null);
       return;
     }
+    // Prefer authenticated actor when ready; still warm anon for the gap during boot.
+    if (identity && actor) return;
     let cancelled = false;
     (async () => {
       try {
@@ -209,7 +211,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [uUsername, identity]);
+  }, [uUsername, identity, actor]);
 
   // After II login / reload, restore hidden Lite admin if the hash is present.
   useEffect(() => {
@@ -691,25 +693,10 @@ export default function App() {
     );
   }
 
-  if (booting) {
-    return (
-      <div className="ice-app">
-        <div className="ice-loading">Starting ICE…</div>
-      </div>
-    );
-  }
-
-  // Public /u/<username> — path route for logged-out and logged-in visitors.
+  // Public /u/<username> BEFORE AuthClient boot — skeleton + anon queries only.
   // Uses the same login() path (derivationOrigin unchanged). No Motoko changes.
   if (uUsername) {
     const uActor = actor || anonActor;
-    if (!uActor) {
-      return (
-        <div className="ice-app">
-          <div className="ice-loading">Loading profile…</div>
-        </div>
-      );
-    }
     // While joining from /u CTA, show Register inside the main shell below.
     if (!(identity && showJoin)) {
       return (
@@ -750,6 +737,14 @@ export default function App() {
         </>
       );
     }
+  }
+
+  if (booting) {
+    return (
+      <div className="ice-app">
+        <div className="ice-loading">Starting ICE…</div>
+      </div>
+    );
   }
 
   if (!identity) {

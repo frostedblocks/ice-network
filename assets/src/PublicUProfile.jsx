@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { unwrapOpt } from "./candidUtils";
 import { copyTextToClipboard } from "./copyText";
+import SafeMarkdown from "./SafeMarkdown";
 import {
   isValidReturnTo,
   parseUUsername,
@@ -10,6 +11,7 @@ import {
 } from "./uProfile";
 
 const PAGE_LIMIT = 10;
+const DEFAULT_DOC_TITLE = "ICE Network | Free username on the Internet Computer";
 
 function setNoIndexMeta(on) {
   try {
@@ -42,6 +44,28 @@ function formatTime(ts) {
   }
 }
 
+function UProfileSkeleton() {
+  return (
+    <div className="ice-u-skeleton" aria-busy="true" aria-live="polite">
+      <span className="ice-sr-only">Loading profile…</span>
+      <div className="ice-u-card">
+        <div className="ice-u-hero">
+          <div className="ice-u-skel ice-u-skel-avatar" />
+          <div className="ice-u-hero-text" style={{ flex: 1 }}>
+            <div className="ice-u-skel ice-u-skel-name" />
+            <div className="ice-u-skel ice-u-skel-handle" />
+            <div className="ice-u-skel ice-u-skel-bio" />
+          </div>
+        </div>
+      </div>
+      <div className="ice-u-skel-posts">
+        <div className="ice-u-skel ice-u-skel-post" />
+        <div className="ice-u-skel ice-u-skel-post" />
+      </div>
+    </div>
+  );
+}
+
 /**
  * Public /u/<username> profile (path route). Works logged-out via anonymous actor.
  * Join CTA uses the same App login() path; returnTo stored in sessionStorage.
@@ -66,13 +90,42 @@ export default function PublicUProfile({
 
   useEffect(() => {
     setNoIndexMeta(true);
-    return () => setNoIndexMeta(false);
+    return () => {
+      setNoIndexMeta(false);
+      try {
+        document.title = DEFAULT_DOC_TITLE;
+      } catch {
+        /* ignore */
+      }
+    };
   }, []);
 
+  // Tab title: loading / not-found / profile
+  useEffect(() => {
+    try {
+      if (loading) {
+        document.title = "Loading… · ICE Network";
+      } else if (notFound || !profile) {
+        document.title = "Profile not found · ICE Network";
+      } else {
+        const name = String(profile.username || urlUsername || "Member").trim();
+        const handle = name.toLowerCase();
+        document.title = `${name} (@${handle}) · ICE Network`;
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [loading, notFound, profile, urlUsername]);
+
   const load = useCallback(async () => {
-    if (!actor || !urlUsername) {
+    if (!urlUsername) {
       setNotFound(true);
       setLoading(false);
+      return;
+    }
+    // Wait for anonymous/authenticated actor — keep skeleton up (do not flash not-found).
+    if (!actor) {
+      setLoading(true);
       return;
     }
     setLoading(true);
@@ -88,14 +141,17 @@ export default function PublicUProfile({
         return;
       }
 
-      let isPrivate = false;
-      try {
-        if (actor.isUserNetworkPrivate) {
-          isPrivate = !!(await actor.isUserNetworkPrivate(principal));
-        }
-      } catch {
-        isPrivate = false;
-      }
+      // Parallel public queries only — no auth/II dependency.
+      const privateP =
+        typeof actor.isUserNetworkPrivate === "function"
+          ? actor.isUserNetworkPrivate(principal).catch(() => false)
+          : Promise.resolve(false);
+      const [isPrivate, profileRaw, postsRaw] = await Promise.all([
+        privateP,
+        actor.getProfile(principal),
+        actor.getPostsByAuthor(principal, PAGE_LIMIT),
+      ]);
+
       if (isPrivate) {
         setNotFound(true);
         setProfile(null);
@@ -103,10 +159,6 @@ export default function PublicUProfile({
         return;
       }
 
-      const [profileRaw, postsRaw] = await Promise.all([
-        actor.getProfile(principal),
-        actor.getPostsByAuthor(principal, PAGE_LIMIT),
-      ]);
       const p = unwrapOpt(profileRaw);
       if (!p || !p.username) {
         setNotFound(true);
@@ -118,7 +170,7 @@ export default function PublicUProfile({
       const current = String(p.username || "").trim();
       const currentKey = current.toLowerCase();
       if (currentKey && currentKey !== urlUsername.toLowerCase()) {
-        const nextPath = publicUPath(current);
+        const nextPath = publicUPath(currentKey);
         try {
           window.history.replaceState(null, "", nextPath);
         } catch {
@@ -145,12 +197,16 @@ export default function PublicUProfile({
     load();
   }, [load]);
 
+  // Display name keeps original casing; @handle uses normalized lowercase key.
   const displayName = profile?.username || urlUsername || "Member";
+  const handleKey = String(profile?.username || urlUsername || "")
+    .trim()
+    .toLowerCase();
   const bioText = stripBioLinks(profile?.bio || "");
   const loggedOut = !identity || identity.getPrincipal?.()?.isAnonymous?.();
 
   const handleShare = async () => {
-    const path = publicUPath(profile?.username || urlUsername);
+    const path = publicUPath(handleKey || urlUsername);
     const url = `https://frostedblocks.com${path}`;
     try {
       if (navigator.share) {
@@ -166,7 +222,7 @@ export default function PublicUProfile({
   };
 
   const handleJoin = () => {
-    const path = publicUPath(profile?.username || urlUsername);
+    const path = publicUPath(handleKey || urlUsername);
     if (isValidReturnTo(path)) setReturnTo(path);
     if (typeof onJoin === "function") onJoin();
   };
@@ -199,15 +255,20 @@ export default function PublicUProfile({
           <button type="button" className="ice-brand-mark" onClick={onHome} aria-label="ICE home">
             ICE
           </button>
-          <a href="/" className="ice-u-home-link" onClick={(e) => { e.preventDefault(); onHome?.(); }}>
+          <a
+            href="/"
+            className="ice-u-home-link"
+            onClick={(e) => {
+              e.preventDefault();
+              onHome?.();
+            }}
+          >
             Network
           </a>
         </header>
 
         {loading ? (
-          <p className="ice-loading" style={{ color: "#8B9BB4" }}>
-            Loading profile…
-          </p>
+          <UProfileSkeleton />
         ) : notFound ? (
           <div className="ice-u-card ice-u-notfound">
             <h1 className="ice-title" style={{ marginTop: 0 }}>
@@ -237,7 +298,7 @@ export default function PublicUProfile({
                 </div>
                 <div className="ice-u-hero-text">
                   <h1 className="ice-u-name">{displayName}</h1>
-                  <p className="ice-u-handle">@{displayName}</p>
+                  <p className="ice-u-handle">@{handleKey}</p>
                   {bioText ? <p className="ice-u-bio">{bioText}</p> : null}
                 </div>
                 <button type="button" className="ice-btn ice-u-share" onClick={handleShare}>
@@ -245,7 +306,9 @@ export default function PublicUProfile({
                 </button>
               </div>
               {shareMsg ? (
-                <p style={{ color: "#7DD3FC", fontSize: "0.85rem", margin: "0.5rem 0 0" }}>{shareMsg}</p>
+                <p style={{ color: "#7DD3FC", fontSize: "0.85rem", margin: "0.5rem 0 0" }}>
+                  {shareMsg}
+                </p>
               ) : null}
             </div>
 
@@ -257,7 +320,7 @@ export default function PublicUProfile({
                 <ul className="ice-u-post-list">
                   {posts.map((post) => (
                     <li key={String(post.id)} className="ice-u-post">
-                      <p className="ice-u-post-body">{post.content || ""}</p>
+                      <SafeMarkdown body={post.content || ""} className="ice-u-post-body" />
                       <time className="ice-u-post-time" dateTime={String(post.timestamp || "")}>
                         {formatTime(post.timestamp)}
                       </time>
