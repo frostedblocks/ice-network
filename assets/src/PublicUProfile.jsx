@@ -11,7 +11,7 @@ import {
 } from "./uProfile";
 
 const PAGE_LIMIT = 10;
-const DEFAULT_DOC_TITLE = "ICE Network | Free username on the Internet Computer";
+const DEFAULT_DOC_TITLE = "ICE Network: free on-chain username and page";
 
 function setNoIndexMeta(on) {
   try {
