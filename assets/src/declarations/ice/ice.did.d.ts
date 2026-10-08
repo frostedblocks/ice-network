@@ -122,7 +122,7 @@ export interface _SERVICE {
    */
   'adminDebitIcpE8s' : ActorMethod<[Principal, bigint], string>,
   /**
-   * / Master: delete a user profile + free its username. Does not delete posts.
+   * Master: delete a user profile; its username stays held until master releaseHeldUsername.
    * / Use for duplicate/legacy II principals (e.g. old founder after owner transfer).
    * / Cannot delete the current owner principal's profile.
    */

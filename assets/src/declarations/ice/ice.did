@@ -123,7 +123,7 @@ service : {
   adminCreditIcpE8s: (to: principal, amountE8s: nat) -> (text);
   /// Master: debit prepaid ICP e8s (capped at balance; no ledger transfer).
   adminDebitIcpE8s: (from: principal, amountE8s: nat) -> (text);
-  /// Master: delete a user profile + free its username. Does not delete posts.
+  /// Master: delete a user profile; its username stays held until master releaseHeldUsername.
   /// Use for duplicate/legacy II principals (e.g. old founder after owner transfer).
   /// Cannot delete the current owner principal's profile.
   adminDeleteProfile: (user: principal) -> (text);
