@@ -1,6 +1,6 @@
 # PR5 evidence — landing hero + first-run copy
 
-**Bundle:** `index-HVaIQLwG.js` (vite build, DFX_NETWORK=ic)
+**Bundle:** `index-BxtUUTiB.js` (vite build, DFX_NETWORK=ic)
 
 ## Screenshots
 
@@ -10,6 +10,8 @@
 | Before homepage 390 (live) | `before-home-390.png` |
 | After homepage 1280 (local) | `after-home-1280.png` |
 | After homepage 390 (local) | `after-home-390.png` |
+| After homepage 960 (local) | `after-home-960.png` |
+| After homepage 1024 (overflow check) | `after-home-1024.png` |
 | See an example → `/u/wood` | `after-example-u-wood-1280.png` |
 | Primary CTA → II window | `after-ii-window-open.png` |
 | Welcome notice | `after-welcome-fixture.png` |
@@ -31,3 +33,9 @@ Welcome / empty / composer fixtures use production `theme.css` classes with the 
 ## Out of scope
 
 No merge / assets deploy until Design GO.
+
+## Overflow fix (Design NO-GO)
+
+- `stepTitle`/`stepText`: `minWidth: 0`; `stepText`: `overflowWrap: "anywhere"`; step grid column `minmax(0,1fr)`.
+- Verified no step/card/page overflow at 1280, 1024, 960, 390.
+- Header CTA label: Sign in; auth-note CTA: Claim my free username.

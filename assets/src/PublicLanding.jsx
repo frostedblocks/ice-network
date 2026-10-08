@@ -262,7 +262,7 @@ export default function PublicLanding({ onJoin, onLogin, authClient = null, isLo
               About
             </a>
             <button type="button" onClick={continueWithII} style={styles.loginBtn}>
-              {isLocal ? "Continue (local)" : "Continue with Internet Identity"}
+              {isLocal ? "Continue (local)" : "Sign in"}
             </button>
           </div>
         </header>
@@ -332,7 +332,7 @@ export default function PublicLanding({ onJoin, onLogin, authClient = null, isLo
                   <li>Public posts are visible to everyone.</li>
                 </ul>
                 <button type="button" onClick={continueWithII} style={styles.primaryBtnCompact}>
-                  {isLocal ? "Continue (local)" : "Continue with Internet Identity"}
+                  {isLocal ? "Continue (local)" : "Claim my free username"}
                 </button>
               </div>
 
@@ -839,11 +839,12 @@ const styles = {
     border: "1px solid rgba(148, 163, 184, 0.14)",
     background: "rgba(9, 9, 11, 0.35)",
     display: "grid",
-    gridTemplateColumns: "auto 1fr",
+    gridTemplateColumns: "auto minmax(0, 1fr)",
     gridTemplateRows: "auto auto",
     columnGap: "0.65rem",
     rowGap: "0.15rem",
     alignItems: "start",
+    minWidth: 0,
   },
   stepNum: {
     gridRow: "1 / span 2",
@@ -863,8 +864,15 @@ const styles = {
     fontSize: "0.88rem",
     fontWeight: 750,
     color: "#EAF6FF",
+    minWidth: 0,
   },
-  stepText: { fontSize: "0.78rem", lineHeight: 1.45, color: "#cbd5e1" },
+  stepText: {
+    fontSize: "0.78rem",
+    lineHeight: 1.45,
+    color: "#cbd5e1",
+    minWidth: 0,
+    overflowWrap: "anywhere",
+  },
   featureRow: {
     display: "grid",
     gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
