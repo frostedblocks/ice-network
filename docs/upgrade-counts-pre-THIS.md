@@ -1,6 +1,7 @@
-# Pre-upgrade baseline (THIS deploy — getUpgradeCounts not on-chain yet)
+# Pre-upgrade baseline (THIS deploy — first getUpgradeCounts on-chain)
 
-Source: master UI Site stats (user-provided) + controller dfx samples.
+Source: master UI Site stats (user-provided), taken for the gate immediately before `canister stop`.  
+Raw dfx dumps (status, `getPostsByAuthor` bodies) stay **outside** the repo.
 
 ## Master Site stats (authoritative for this deploy)
 
@@ -16,21 +17,22 @@ Source: master UI Site stats (user-provided) + controller dfx samples.
 | reports | 0 |
 | banned | 0 |
 
-## Post-upgrade gate (getUpgradeCounts)
+Semantics:
 
-Must show (equal or higher):
+- `totalPosts` = `nextPostId` counter (44)
+- `visiblePosts + hiddenPosts` = 25 + 0 = **25** ← matches `getUpgradeCounts.posts` (`posts.size()`)
 
-- posts >= 44
-- profiles >= 7
-- registered >= 8
-- totalComments >= 1
+## Post-upgrade gate (like-for-like)
 
-Also record usernameIndex, networkPrivate, releaseLog for the next upgrade baseline.
+1. Master Site stats again: each field **≥** pre (`totalPosts` ≥ 44, `totalProfiles` ≥ 7, `registeredAccounts` ≥ 8, `totalComments` ≥ 1, …).
+2. `getUpgradeCounts()`:
+   - `posts` **==** visible + hidden (**25**)
+   - `profiles` **≥** 7
+3. Save the full `getUpgradeCounts` output as the baseline for the **next** upgrade.
 
-## Controller dfx samples (sanity)
+## Controller sanity (no post bodies in-repo)
 
-- Ice cycles / status: docs/upgrade-ice-status-pre.txt (~4.7 T)
-- getPostsByAuthor(gmtr2, 20) empty — see docs/upgrade-gmtr2-posts-pre.txt
-- getPostsByAuthor(ogsk6, 20) posts present — see docs/upgrade-ogsk6-posts-pre.txt
+- `getPostsByAuthor(ogsk6, 20)` — posts present (gmtr2 empty is expected; do not use gmtr2 as the sanity author).
+- Ice cycles were healthy (~4.7 T) before stop.
 
-STOP if totalPosts or totalProfiles had been 0 — they are not.
+STOP if `totalPosts` or `totalProfiles` had been 0 — they are not.

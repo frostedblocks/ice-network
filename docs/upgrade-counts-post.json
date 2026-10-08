@@ -1,0 +1,12 @@
+{
+  "posts": 25,
+  "profiles": 7,
+  "registered": 8,
+  "totalComments": 1,
+  "usernameIndex": 7,
+  "networkPrivate": 0,
+  "releaseLog": 0,
+  "deployedSha": "ba785c46332b73e443979990c61976f79deca94f",
+  "snapshotId": "00000000000000000000000001b0f32d0101",
+  "moduleHash": "0x9ad52a57539fd9072605cc144c7636541cc389230fa245585a669897deea9fa0"
+}
