@@ -178,8 +178,8 @@ export default function PostForm({ actor, onPostCreated, principal, siteCanister
         onChange={(e) => setContent(e.target.value)}
         placeholder={
           isFreeTier
-            ? `What's on your mind? (${freeMax} characters on free tier)`
-            : "What's on your mind?"
+            ? `What are you working on this week? (${freeMax} characters on free tier)`
+            : "What are you working on this week?"
         }
         rows={3}
         maxLength={maxLength}

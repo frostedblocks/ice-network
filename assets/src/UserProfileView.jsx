@@ -407,7 +407,11 @@ export default function UserProfileView({
           </h3>
 
           {posts.length === 0 ? (
-            <p style={{ color: "#475569" }}>No posts yet.</p>
+            <p style={{ color: "#475569" }}>
+              {isSelf
+                ? "Nothing here yet. Tell people what you're building."
+                : "No posts yet."}
+            </p>
           ) : (
             posts.map((post) => (
               <PostCard
