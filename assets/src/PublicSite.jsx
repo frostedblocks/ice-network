@@ -695,7 +695,7 @@ export default function PublicSite({
             {activePage.id !== "profile" && (
               <h2 style={styles.pageTitle}>{activePage.title || activePage.id}</h2>
             )}
-            <div style={styles.pageBody}><SafeMarkdown body={activePage.body} /></div>
+            <div style={styles.pageBody}><SafeMarkdown body={activePage.body} className="ice-site-md" /></div>
           </article>
         ) : (
           <div className="ice-empty ice-glass-soft">No pages on this site yet.</div>
@@ -932,33 +932,6 @@ const styles = {
   },
   pageBody: {
     color: "#e2e8f0",
-  },
-  para: {
-    margin: "0 0 0.85rem",
-    lineHeight: 1.65,
-    color: "#cbd5e1",
-    fontSize: "0.95rem",
-  },
-  h1: {
-    margin: "0 0 0.75rem",
-    fontSize: "1.4rem",
-    color: "#f8fafc",
-    letterSpacing: "-0.02em",
-  },
-  h2: {
-    margin: "1.1rem 0 0.55rem",
-    fontSize: "1.15rem",
-    color: "#f1f5f9",
-  },
-  h3: {
-    margin: "0.9rem 0 0.45rem",
-    fontSize: "1rem",
-    color: "#e2e8f0",
-  },
-  hr: {
-    border: "none",
-    borderTop: "1px solid rgba(148,163,184,0.15)",
-    margin: "1.1rem 0",
   },
   footer: {
     marginTop: "2.5rem",

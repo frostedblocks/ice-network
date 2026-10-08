@@ -7,7 +7,8 @@ import React from "react";
  * component to reuse. This module extracts and extends the lightweight renderer
  * previously inlined in PublicSite.jsx so /u (and PublicSite) share one path.
  *
- * Supported: paragraphs, #/##/### headings, hr, **bold**, *italic*,
+ * Supported: paragraphs (newline-preserving), #/##/### headings, hr,
+ * unordered (- ) and ordered (1. ) lists, **bold**, *italic*,
  * [label](url), bare http(s) URLs. Links open in a new tab with
  * rel="noopener noreferrer nofollow ugc". utm_* query params are stripped from
  * hrefs for display only.
@@ -17,8 +18,12 @@ const LINK_REL = "noopener noreferrer nofollow ugc";
 
 /** Strip utm_* query params from a URL string (display only). */
 export function stripUtmParams(href) {
+  const raw = String(href || "");
   try {
-    const u = new URL(String(href || "").trim());
+    const u = new URL(raw.trim());
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return raw;
+    }
     const keys = [...u.searchParams.keys()];
     let changed = false;
     for (const k of keys) {
@@ -31,7 +36,7 @@ export function stripUtmParams(href) {
     // Prefer compact form when search becomes empty
     return u.searchParams.toString() ? u.toString() : `${u.origin}${u.pathname}${u.hash}`;
   } catch {
-    return String(href || "");
+    return raw;
   }
 }
 
@@ -97,6 +102,16 @@ function renderInline(text, keyPrefix = "i") {
   return nodes.length ? nodes : src;
 }
 
+function matchUnordered(t) {
+  const m = String(t).match(/^[-*]\s+(.+)$/);
+  return m ? m[1] : null;
+}
+
+function matchOrdered(t) {
+  const m = String(t).match(/^\d+\.\s+(.+)$/);
+  return m ? m[1] : null;
+}
+
 /**
  * Block-level markdown renderer.
  * @param {string} body
@@ -107,10 +122,12 @@ export default function SafeMarkdown({ body, className }) {
   const lines = String(body).split("\n");
   const blocks = [];
   let para = [];
+  let listKind = null; // "ul" | "ol" | null
+  let listItems = [];
 
   const flushPara = () => {
     if (!para.length) return;
-    const text = para.join(" ").trim();
+    const text = para.join("\n").trim();
     if (text) {
       blocks.push(
         <p key={`p-${blocks.length}`} className="ice-md-p">
@@ -121,19 +138,44 @@ export default function SafeMarkdown({ body, className }) {
     para = [];
   };
 
+  const flushList = () => {
+    if (!listKind || !listItems.length) {
+      listKind = null;
+      listItems = [];
+      return;
+    }
+    const Tag = listKind === "ol" ? "ol" : "ul";
+    const cls = listKind === "ol" ? "ice-md-ol" : "ice-md-ul";
+    const keyBase = blocks.length;
+    blocks.push(
+      <Tag key={`list-${keyBase}`} className={cls}>
+        {listItems.map((item, idx) => (
+          <li key={`li-${keyBase}-${idx}`} className="ice-md-li">
+            {renderInline(item, `li${keyBase}-${idx}`)}
+          </li>
+        ))}
+      </Tag>
+    );
+    listKind = null;
+    listItems = [];
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const t = line.trim();
     if (!t) {
+      flushList();
       flushPara();
       continue;
     }
     if (t === "---" || t === "***") {
+      flushList();
       flushPara();
       blocks.push(<hr key={`hr-${blocks.length}`} className="ice-md-hr" />);
       continue;
     }
     if (t.startsWith("### ")) {
+      flushList();
       flushPara();
       blocks.push(
         <h3 key={`h3-${blocks.length}`} className="ice-md-h3">
@@ -143,6 +185,7 @@ export default function SafeMarkdown({ body, className }) {
       continue;
     }
     if (t.startsWith("## ")) {
+      flushList();
       flushPara();
       blocks.push(
         <h2 key={`h2-${blocks.length}`} className="ice-md-h2">
@@ -152,6 +195,7 @@ export default function SafeMarkdown({ body, className }) {
       continue;
     }
     if (t.startsWith("# ")) {
+      flushList();
       flushPara();
       blocks.push(
         <h1 key={`h1-${blocks.length}`} className="ice-md-h1">
@@ -160,8 +204,23 @@ export default function SafeMarkdown({ body, className }) {
       );
       continue;
     }
+
+    const ulItem = matchUnordered(t);
+    const olItem = matchOrdered(t);
+    if (ulItem != null || olItem != null) {
+      flushPara();
+      const kind = ulItem != null ? "ul" : "ol";
+      const item = ulItem != null ? ulItem : olItem;
+      if (listKind && listKind !== kind) flushList();
+      listKind = kind;
+      listItems.push(item);
+      continue;
+    }
+
+    flushList();
     para.push(t);
   }
+  flushList();
   flushPara();
 
   if (!blocks.length) {
