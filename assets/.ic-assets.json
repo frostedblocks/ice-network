@@ -12,6 +12,14 @@
     "disable_security_policy_warning": true
   },
   {
+    "match": "logo.png",
+    "headers": {
+      "Cache-Control": "public, max-age=86400",
+      "Access-Control-Allow-Origin": "*",
+      "Content-Type": "image/png"
+    }
+  },
+  {
     "match": ".well-known",
     "ignore": false
   },
@@ -34,6 +42,15 @@
   },
   {
     "match": ".well-known/ii-alternative-origins",
+    "headers": {
+      "Cache-Control": "public, max-age=0, must-revalidate",
+      "Access-Control-Allow-Origin": "*",
+      "Content-Type": "application/json"
+    },
+    "ignore": false
+  },
+  {
+    "match": ".well-known/ii-app-metadata",
     "headers": {
       "Cache-Control": "public, max-age=0, must-revalidate",
       "Access-Control-Allow-Origin": "*",
@@ -92,7 +109,6 @@
   },
   {
     "match": "partners.html",
-
     "headers": {
       "Cache-Control": "public, max-age=0, must-revalidate"
     },

@@ -45,6 +45,7 @@ export default function UserProfileView({
   principal, // the profile being viewed
   currentUserPrincipal,
   onBack,
+  onEditProfile,
   onUserClick,
   onIcpChanged,
 }) {
@@ -190,22 +191,54 @@ export default function UserProfileView({
 
   return (
     <div className="ice-user-view">
-      <button
-        onClick={onBack}
+      <div
         style={{
-          background: "none",
-          border: "none",
-          color: "#7dd3fc",
-          cursor: "pointer",
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: "0.75rem",
           marginBottom: "1.25rem",
-          padding: 0,
-          fontSize: "0.9rem",
           position: "relative",
           zIndex: 2,
         }}
       >
-        ← Back to feed
-      </button>
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#7dd3fc",
+            cursor: "pointer",
+            padding: 0,
+            fontSize: "0.9rem",
+          }}
+        >
+          ← Back to feed
+        </button>
+        {isSelf && onEditProfile && (
+          <button
+            type="button"
+            className="ice-btn ice-btn-xs"
+            onClick={onEditProfile}
+          >
+            Edit profile
+          </button>
+        )}
+      </div>
+
+      {isSelf && (
+        <div
+          className="ice-alert-ok"
+          style={{
+            marginBottom: "1rem",
+            position: "relative",
+            zIndex: 2,
+          }}
+        >
+          This is your public profile — how others see you on ICE.
+        </div>
+      )}
 
       <div className="ice-user-view-banner" aria-hidden="true" />
 
