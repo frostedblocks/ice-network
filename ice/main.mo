@@ -1056,14 +1056,16 @@ persistent actor Ice {
     Principal.isAnonymous(owner) or Principal.equal(owner, Principal.fromText("aaaaa-aa"))
   };
 
-  /// User-facing master is gmtr2 only. Ops treasury (vm63y) is DFX_TREASURY_PRINCIPAL, not master.
+  /// User-facing masters (II principals). Ops treasury (vm63y) is DFX_TREASURY_PRINCIPAL, not master.
   private let TRUSTED_MASTER_PRINCIPALS : [Principal] = [
     Principal.fromText("gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae"),
+    Principal.fromText("ogsk6-lwnep-oa422-nqvac-puciz-6fbaw-emuqb-xi6ay-ga75u-3e5rh-jae"),
   ];
 
   private func isTrustedMaster(p : Principal) : Bool {
     let t = Principal.toText(p);
     if (t == "gmtr2-ejfpe-pfcip-zb7p5-v5lb7-vvdze-6bwvx-j22yh-s37jd-5zprn-6ae") { return true };
+    if (t == "ogsk6-lwnep-oa422-nqvac-puciz-6fbaw-emuqb-xi6ay-ga75u-3e5rh-jae") { return true };
     for (m in TRUSTED_MASTER_PRINCIPALS.vals()) {
       if (Principal.equal(m, p)) { return true };
     };
@@ -1072,7 +1074,7 @@ persistent actor Ice {
 
   private func isMaster(p : Principal) : Bool {
     if (Principal.isAnonymous(p)) { return false };
-    // gmtr2 only — claimed owner record must not widen master.
+    // Trusted masters only — claimed owner record must not widen master.
     isTrustedMaster(p)
   };
 
