@@ -156,6 +156,10 @@ service : {
    paidMaxLength: nat, maxCommentLength: nat, reportsToHide: nat) -> (
    text);
   adminSetPaymentsEnabled: (enabled: bool) -> (text);
+  /// Master: set post category (needed before featuring non-default posts).
+  adminSetPostCategory: (postId: nat, category: text) -> (text);
+  /// Master: set/clear featured. Featuring requires category in General|Ideas|Product.
+  adminSetPostFeatured: (postId: nat, featured: bool) -> (text);
   /// Join fee is permanently off (fee-at-mint). Rejects any attempt to enable.
   adminSetRegistrationFee: (enabled: bool, feeE8s: nat, bonusTokens: 
    nat) -> (text);
@@ -218,6 +222,12 @@ service : {
                                                       text;
                                                     }) query;
   getComments: (postId: nat) -> (vec Comment) query;
+  getDisplayName: (user: principal) -> (opt text) query;
+  getDisplayNames: (users: vec principal) ->
+   (vec record {
+          principal;
+          text;
+        }) query;
   getEconomyConfig: () ->
    (record {
       loveFeeE8s: nat;
@@ -239,6 +249,13 @@ service : {
       tipUnlockMinE8s: nat;
       tippingEnabled: bool;
     }) query;
+  getFeaturedFlagsForPosts: (postIds: vec nat) ->
+   (vec record {
+          nat;
+          bool;
+        }) query;
+  /// Homepage curation: featured + allow-list category; skips hidden / network-private.
+  getFeaturedPosts: (limit: nat) -> (vec Post) query;
   /// Categories the user follows (empty = none selected yet)
   getFollowedCategories: (user: principal) -> (vec text) query;
   /// Main ICE feed (logged-in or same as public): never includes detached (network-private) authors.
@@ -311,6 +328,7 @@ service : {
   isOwner: (user: principal) -> (bool) query;
   isOwnerVisible: (user: principal) -> (bool) query;
   isPaymentsEnabled: () -> (bool) query;
+  isPostFeatured: (postId: nat) -> (bool) query;
   isRegistered: (user: principal) -> (bool) query;
   isRegistrationFeeEnabled: () -> (bool) query;
   isStoreCommerceEnabled: () -> (bool) query;
@@ -343,6 +361,8 @@ service : {
   reportPost: (postId: nat) -> (text);
   searchPosts: (keyword: text) -> (vec Post) query;
   setCloak: (cloaked: bool) -> (bool);
+  /// Optional human display name (not URL handle). Empty clears.
+  setDisplayName: (name: text) -> (text);
   setFeedBridgeOpen: (open: bool) -> (LiteAdminWrite);
   /// Save which categories the caller wants to follow for the feed filter
   setFollowedCategories: (cats: vec text) -> (text);

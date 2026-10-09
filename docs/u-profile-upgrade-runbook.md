@@ -147,3 +147,11 @@ dfx canister start ice --network ic
 ```
 
 Do **not** reinstall an old WASM over newer state.
+
+## Featured posts + displayName (PR featured-feed-displayname)
+
+- Stable side maps only: `postFeaturedEntries`, `displayNameEntries`. **Do not change `type Post` or `UserProfile`.**
+- Feature allow-list: General | Ideas | Product. Masters set category via `adminSetPostCategory` before `adminSetPostFeatured(true)`.
+- `setDisplayName`: human-readable (letters/digits/spaces/./-/', 1–40); optional; not a URL handle. Handles stay on `setProfile` + username hold.
+- Pre/post upgrade: same `getUpgradeCounts` gate + mandatory snapshot. Smoke after upgrade: `getFeaturedPosts(5)` (may be empty), candid methods present.
+- **Stop before deploy** until explicit GO; never `--yes`; never reinstall.

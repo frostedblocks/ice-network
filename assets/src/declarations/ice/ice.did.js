@@ -160,6 +160,8 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminSetPaymentsEnabled' : IDL.Func([IDL.Bool], [IDL.Text], []),
+    'adminSetPostCategory' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Text], []),
+    'adminSetPostFeatured' : IDL.Func([IDL.Nat, IDL.Bool], [IDL.Text], []),
     'adminSetRegistrationFee' : IDL.Func(
         [IDL.Bool, IDL.Nat, IDL.Nat],
         [IDL.Text],
@@ -219,6 +221,16 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getComments' : IDL.Func([IDL.Nat], [IDL.Vec(Comment)], ['query']),
+    'getDisplayName' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(IDL.Text)],
+        ['query'],
+      ),
+    'getDisplayNames' : IDL.Func(
+        [IDL.Vec(IDL.Principal)],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Text))],
+        ['query'],
+      ),
     'getEconomyConfig' : IDL.Func(
         [],
         [
@@ -245,6 +257,12 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
+    'getFeaturedFlagsForPosts' : IDL.Func(
+        [IDL.Vec(IDL.Nat)],
+        [IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Bool))],
+        ['query'],
+      ),
+    'getFeaturedPosts' : IDL.Func([IDL.Nat], [IDL.Vec(Post)], ['query']),
     'getFollowedCategories' : IDL.Func(
         [IDL.Principal],
         [IDL.Vec(IDL.Text)],
@@ -341,6 +359,7 @@ export const idlFactory = ({ IDL }) => {
     'isOwner' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isOwnerVisible' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isPaymentsEnabled' : IDL.Func([], [IDL.Bool], ['query']),
+    'isPostFeatured' : IDL.Func([IDL.Nat], [IDL.Bool], ['query']),
     'isRegistered' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isRegistrationFeeEnabled' : IDL.Func([], [IDL.Bool], ['query']),
     'isStoreCommerceEnabled' : IDL.Func([], [IDL.Bool], ['query']),
@@ -373,6 +392,7 @@ export const idlFactory = ({ IDL }) => {
     'reportPost' : IDL.Func([IDL.Nat], [IDL.Text], []),
     'searchPosts' : IDL.Func([IDL.Text], [IDL.Vec(Post)], ['query']),
     'setCloak' : IDL.Func([IDL.Bool], [IDL.Bool], []),
+    'setDisplayName' : IDL.Func([IDL.Text], [IDL.Text], []),
     'setFeedBridgeOpen' : IDL.Func([IDL.Bool], [LiteAdminWrite], []),
     'setFollowedCategories' : IDL.Func([IDL.Vec(IDL.Text)], [IDL.Text], []),
     'setProfile' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Text], []),

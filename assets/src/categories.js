@@ -10,6 +10,7 @@ export const CATEGORIES = [
   "Sports",
   "Questions",
   "Random",
+  "Product",
 ];
 
 export const DEFAULT_CATEGORY = "General";
@@ -26,6 +27,7 @@ export const CATEGORY_COLORS = {
   Sports: { bg: "rgba(74, 222, 128, 0.12)", border: "rgba(74, 222, 128, 0.35)", color: "#86efac" },
   Questions: { bg: "rgba(96, 165, 250, 0.14)", border: "rgba(96, 165, 250, 0.4)", color: "#93c5fd" },
   Random: { bg: "rgba(251, 146, 60, 0.12)", border: "rgba(251, 146, 60, 0.35)", color: "#fdba74" },
+  Product: { bg: "rgba(45, 212, 191, 0.14)", border: "rgba(45, 212, 191, 0.4)", color: "#5eead4" },
 };
 
 export function categoryStyle(name) {

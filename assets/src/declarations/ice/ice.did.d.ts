@@ -122,7 +122,7 @@ export interface _SERVICE {
    */
   'adminDebitIcpE8s' : ActorMethod<[Principal, bigint], string>,
   /**
-   * Master: delete a user profile; its username stays held until master releaseHeldUsername.
+   * / Master: delete a user profile; its username stays held until master releaseHeldUsername.
    * / Use for duplicate/legacy II principals (e.g. old founder after owner transfer).
    * / Cannot delete the current owner principal's profile.
    */
@@ -167,6 +167,14 @@ export interface _SERVICE {
     string
   >,
   'adminSetPaymentsEnabled' : ActorMethod<[boolean], string>,
+  /**
+   * / Master: set post category (needed before featuring non-default posts).
+   */
+  'adminSetPostCategory' : ActorMethod<[bigint, string], string>,
+  /**
+   * / Master: set/clear featured. Featuring requires category in General|Ideas|Product.
+   */
+  'adminSetPostFeatured' : ActorMethod<[bigint, boolean], string>,
   /**
    * / Join fee is permanently off (fee-at-mint). Rejects any attempt to enable.
    */
@@ -267,6 +275,11 @@ export interface _SERVICE {
     Array<[bigint, string]>
   >,
   'getComments' : ActorMethod<[bigint], Array<Comment>>,
+  'getDisplayName' : ActorMethod<[Principal], [] | [string]>,
+  'getDisplayNames' : ActorMethod<
+    [Array<Principal>],
+    Array<[Principal, string]>
+  >,
   'getEconomyConfig' : ActorMethod<
     [],
     {
@@ -290,6 +303,14 @@ export interface _SERVICE {
       'registrationFeeE8s' : bigint,
     }
   >,
+  'getFeaturedFlagsForPosts' : ActorMethod<
+    [Array<bigint>],
+    Array<[bigint, boolean]>
+  >,
+  /**
+   * / Homepage curation: featured + allow-list category; skips hidden / network-private.
+   */
+  'getFeaturedPosts' : ActorMethod<[bigint], Array<Post>>,
   /**
    * / Categories the user follows (empty = none selected yet)
    */
@@ -398,6 +419,7 @@ export interface _SERVICE {
   'isOwner' : ActorMethod<[Principal], boolean>,
   'isOwnerVisible' : ActorMethod<[Principal], boolean>,
   'isPaymentsEnabled' : ActorMethod<[], boolean>,
+  'isPostFeatured' : ActorMethod<[bigint], boolean>,
   'isRegistered' : ActorMethod<[Principal], boolean>,
   'isRegistrationFeeEnabled' : ActorMethod<[], boolean>,
   'isStoreCommerceEnabled' : ActorMethod<[], boolean>,
@@ -437,6 +459,10 @@ export interface _SERVICE {
   'reportPost' : ActorMethod<[bigint], string>,
   'searchPosts' : ActorMethod<[string], Array<Post>>,
   'setCloak' : ActorMethod<[boolean], boolean>,
+  /**
+   * / Optional human display name (not URL handle). Empty clears.
+   */
+  'setDisplayName' : ActorMethod<[string], string>,
   'setFeedBridgeOpen' : ActorMethod<[boolean], LiteAdminWrite>,
   /**
    * / Save which categories the caller wants to follow for the feed filter
