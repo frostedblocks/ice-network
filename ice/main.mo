@@ -734,7 +734,8 @@ persistent actor Ice {
     "General", "Tech", "Crypto", "Life", "Ideas", "News", "Art", "Sports", "Questions", "Random", "Product"
   ];
   /// Master may feature only these categories (politics/price talk = moderation, not NLP).
-  private let FEATURE_ALLOW_CATEGORIES : [Text] = ["General", "Ideas", "Product"];
+  /// transient: must not persist across upgrades or code edits to the allow-list would be ignored.
+  private transient let FEATURE_ALLOW_CATEGORIES : [Text] = ["General", "Ideas", "Product"];
   private let DEFAULT_CATEGORY : Text = "General";
 
   private func natHash(n : Nat) : Nat32 { Nat32.fromNat(n) };
@@ -1891,6 +1892,7 @@ persistent actor Ice {
       case (?pr) {
         // Keep usernameIndex keys (hold until master releaseHeldUsername)
         userProfiles.delete(user);
+        displayNames.delete(user);
         registeredUsers.delete(user);
         "Deleted profile for " # Principal.toText(user)
           # (if (Text.size(pr.username) > 0) { " (username held: " # pr.username # ")" } else { "" })
@@ -3031,14 +3033,18 @@ persistent actor Ice {
   };
 
   public query func getDisplayNames(users : [Principal]) : async [(Principal, Text)] {
+    let lim = if (users.size() > 200) { 200 } else { users.size() };
     let buf = Buffer.Buffer<(Principal, Text)>(0);
-    for (u in users.vals()) {
+    var i : Nat = 0;
+    while (i < lim) {
+      let u = users[i];
       switch (displayNames.get(u)) {
         case (?dn) {
           if (Text.size(dn) > 0) { buf.add((u, dn)) };
         };
         case null {};
       };
+      i += 1;
     };
     Buffer.toArray(buf)
   };
