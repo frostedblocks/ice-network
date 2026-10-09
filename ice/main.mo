@@ -729,8 +729,8 @@ persistent actor Ice {
   private transient var notifications = HashMap.HashMap<Principal, [Notification]>(0, Principal.equal, Principal.hash);
   private transient var masterContacts : [MasterContact] = [];
 
-  // Valid post categories (fixed list)
-  private let VALID_CATEGORIES : [Text] = [
+  // Valid post categories (fixed list). stable var + postupgrade refresh so list edits apply.
+  private stable var VALID_CATEGORIES : [Text] = [
     "General", "Tech", "Crypto", "Life", "Ideas", "News", "Art", "Sports", "Questions", "Random", "Product"
   ];
   /// Master may feature only these categories (politics/price talk = moderation, not NLP).
@@ -908,6 +908,10 @@ persistent actor Ice {
     displayNameEntries := [];
     followedCategoriesEntries := [];
     networkPrivateEntries := [];
+    // Refresh category list from code (stable var carries old value across upgrades otherwise).
+    VALID_CATEGORIES := [
+      "General", "Tech", "Crypto", "Life", "Ideas", "News", "Art", "Sports", "Questions", "Random", "Product"
+    ];
     // Legacy stables kept for upgrade layout (referral / packs / tip-unlock).
     ignore REFERRAL_REWARD_THRESHOLD;
     ignore tiers;
