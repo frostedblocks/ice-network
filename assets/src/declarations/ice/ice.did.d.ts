@@ -2,6 +2,27 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export type AdminAccountFilter = { 'all' : null } |
+  { 'noUsername' : null } |
+  { 'banned' : null } |
+  { 'unregistered' : null } |
+  { 'networkPrivate' : null };
+export interface AdminAccountPage {
+  'total' : bigint,
+  'rows' : Array<AdminAccountRow>,
+  'offset' : bigint,
+}
+export interface AdminAccountRow {
+  'postCount' : bigint,
+  'username' : string,
+  'bioSnippet' : string,
+  'formerNames' : Array<string>,
+  'user' : Principal,
+  'hasProfile' : boolean,
+  'isBanned' : boolean,
+  'isNetworkPrivate' : boolean,
+  'isRegistered' : boolean,
+}
 export interface AdminUserInfo {
   'bio' : string,
   'username' : string,
@@ -128,6 +149,15 @@ export interface _SERVICE {
    */
   'adminDeleteProfile' : ActorMethod<[Principal], string>,
   'adminHidePost' : ActorMethod<[bigint], boolean>,
+  /**
+   * / Master-only uncertified query: paginated account index for admin display only.
+   * / Never used for access decisions. Cost is O(posts + profiles + usernameIndex) per call;
+   * / phase 2 should keep a per-author count map if posts exceed ~200k.
+   */
+  'adminListAccounts' : ActorMethod<
+    [string, AdminAccountFilter, bigint, bigint],
+    AdminAccountPage
+  >,
   /**
    * / Master: list all profiles (principal + username + bio). For cleanup / audits.
    */

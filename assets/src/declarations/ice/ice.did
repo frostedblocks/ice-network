@@ -111,6 +111,32 @@ type AdminUserInfo =
    user: principal;
    username: text;
  };
+type AdminAccountRow = 
+ record {
+   bioSnippet: text;
+   formerNames: vec text;
+   hasProfile: bool;
+   isBanned: bool;
+   isNetworkPrivate: bool;
+   isRegistered: bool;
+   postCount: nat;
+   user: principal;
+   username: text;
+ };
+type AdminAccountPage = 
+ record {
+   offset: nat;
+   rows: vec AdminAccountRow;
+   total: nat;
+ };
+type AdminAccountFilter = 
+ variant {
+   all;
+   banned;
+   networkPrivate;
+   noUsername;
+   unregistered;
+ };
 service : {
   addComment: (postId: nat, content: text) -> (opt nat);
   adminBanUser: (user: principal) -> (text);
@@ -128,6 +154,11 @@ service : {
   /// Cannot delete the current owner principal's profile.
   adminDeleteProfile: (user: principal) -> (text);
   adminHidePost: (postId: nat) -> (bool);
+  /// Master-only uncertified query: paginated account index for admin display only.
+  /// Never used for access decisions. Cost is O(posts + profiles + usernameIndex) per call;
+  /// phase 2 should keep a per-author count map if posts exceed ~200k.
+  adminListAccounts: (queryText: text, filter: AdminAccountFilter, offset:
+   nat, limit: nat) -> (AdminAccountPage) query;
   /// Master: list all profiles (principal + username + bio). For cleanup / audits.
   adminListProfiles: () -> (vec record {
                                   principal;

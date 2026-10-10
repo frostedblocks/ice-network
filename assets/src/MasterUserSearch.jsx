@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Principal } from "@dfinity/principal";
 import { createFactoryActor } from "./actors";
 
@@ -9,8 +9,9 @@ export default function MasterUserSearch({
   actor,
   identity,
   onUsePrincipal,
+  initialQuery = "",
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery || "");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -21,6 +22,12 @@ export default function MasterUserSearch({
   /** II principal mismatch: migrate membership from → to */
   const [migrateFrom, setMigrateFrom] = useState("");
   const [migrateTo, setMigrateTo] = useState("");
+
+  useEffect(() => {
+    if (initialQuery) {
+      setQuery(initialQuery);
+    }
+  }, [initialQuery]);
 
   const runSearch = async (e) => {
     e?.preventDefault?.();

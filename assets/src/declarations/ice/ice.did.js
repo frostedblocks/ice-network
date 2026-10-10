@@ -1,4 +1,27 @@
 export const idlFactory = ({ IDL }) => {
+  const AdminAccountFilter = IDL.Variant({
+    'all' : IDL.Null,
+    'noUsername' : IDL.Null,
+    'banned' : IDL.Null,
+    'unregistered' : IDL.Null,
+    'networkPrivate' : IDL.Null,
+  });
+  const AdminAccountRow = IDL.Record({
+    'postCount' : IDL.Nat,
+    'username' : IDL.Text,
+    'bioSnippet' : IDL.Text,
+    'formerNames' : IDL.Vec(IDL.Text),
+    'user' : IDL.Principal,
+    'hasProfile' : IDL.Bool,
+    'isBanned' : IDL.Bool,
+    'isNetworkPrivate' : IDL.Bool,
+    'isRegistered' : IDL.Bool,
+  });
+  const AdminAccountPage = IDL.Record({
+    'total' : IDL.Nat,
+    'rows' : IDL.Vec(AdminAccountRow),
+    'offset' : IDL.Nat,
+  });
   const AdminUserInfo = IDL.Record({
     'bio' : IDL.Text,
     'username' : IDL.Text,
@@ -113,6 +136,11 @@ export const idlFactory = ({ IDL }) => {
     'adminDebitIcpE8s' : IDL.Func([IDL.Principal, IDL.Nat], [IDL.Text], []),
     'adminDeleteProfile' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'adminHidePost' : IDL.Func([IDL.Nat], [IDL.Bool], []),
+    'adminListAccounts' : IDL.Func(
+        [IDL.Text, AdminAccountFilter, IDL.Nat, IDL.Nat],
+        [AdminAccountPage],
+        ['query'],
+      ),
     'adminListProfiles' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Text, IDL.Text))],

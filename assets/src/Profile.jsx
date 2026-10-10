@@ -6,6 +6,7 @@ import LimitControls from "./LimitControls";
 import MasterEconomyControls from "./MasterEconomyControls";
 import MasterStoreCommerceControls from "./MasterStoreCommerceControls";
 import MasterUserSearch from "./MasterUserSearch";
+import MasterAccountsIndex from "./MasterAccountsIndex";
 import MasterHostingControls from "./MasterHostingControls";
 import MasterSiteResets from "./MasterSiteResets";
 import CycleBalance from "./CycleBalance";
@@ -38,6 +39,7 @@ function principalTextOf(p) {
 const MASTER_TABS = [
   { id: "overview", label: "Overview" },
   { id: "users", label: "Users" },
+  { id: "accounts", label: "All accounts" },
   { id: "economy", label: "Economy" },
   { id: "hosting", label: "Hosting" },
   { id: "moderation", label: "Moderation" },
@@ -92,6 +94,7 @@ export default function Profile({ actor, identity, onViewPublicProfile }) {
   const [adminMsg, setAdminMsg] = useState("");
   const [adminErr, setAdminErr] = useState("");
   const [masterTab, setMasterTab] = useState("overview");
+  const [usersPrefill, setUsersPrefill] = useState("");
   const [copied, setCopied] = useState("");
 
   const principal = identity ? identity.getPrincipal() : null;
@@ -614,10 +617,24 @@ export default function Profile({ actor, identity, onViewPublicProfile }) {
                 <MasterUserSearch
                   actor={actor}
                   identity={identity}
+                  initialQuery={usersPrefill}
                   onUsePrincipal={(pt) => {
                     setGrantTo(pt);
                     setRemoveTo(pt);
                     setMasterTab("balances");
+                  }}
+                />
+              </div>
+            )}
+
+            {masterTab === "accounts" && (
+              <div className="ice-master-pane">
+                <MasterAccountsIndex
+                  actor={actor}
+                  identity={identity}
+                  onOpenInUserTools={(pt) => {
+                    setUsersPrefill(pt);
+                    setMasterTab("users");
                   }}
                 />
               </div>
