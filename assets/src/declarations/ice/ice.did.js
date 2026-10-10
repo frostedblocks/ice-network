@@ -200,6 +200,7 @@ export const idlFactory = ({ IDL }) => {
     'adminUnbanUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'adminUnhidePost' : IDL.Func([IDL.Nat], [IDL.Bool], []),
     'adminUnmarkRegistered' : IDL.Func([IDL.Principal], [IDL.Text], []),
+    'adminWipeAllPostsAndComments' : IDL.Func([IDL.Text], [IDL.Text], []),
     'banLiteHandle' : IDL.Func([IDL.Text], [LiteAdminWrite], []),
     'block' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'canManageLiteAdmin' : IDL.Func([], [IDL.Bool], ['query']),

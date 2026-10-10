@@ -218,6 +218,13 @@ export interface _SERVICE {
    * / (e.g. ops deploy identity / unused founder IIs). Does not remove profile if one exists.
    */
   'adminUnmarkRegistered' : ActorMethod<[Principal], string>,
+  /**
+   * / Master-only: permanently clear every post, comment, and post-keyed side data.
+   * / Traps unless caller isMaster AND confirm == "DELETE ALL POSTS AND COMMENTS".
+   * / No controller or anonymous bypass. Clears live maps and stable *Entries so
+   * / wiped data cannot return on the next upgrade.
+   */
+  'adminWipeAllPostsAndComments' : ActorMethod<[string], string>,
   'banLiteHandle' : ActorMethod<[string], LiteAdminWrite>,
   /**
    * / Block target: store block and remove any follow edge both directions.
