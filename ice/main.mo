@@ -668,6 +668,10 @@ persistent actor Ice {
   private stable var usernameReleaseLogEntries : [(Text, Principal, Principal, Text, Int)] = [];
   // Categories kept separate so Post type stays upgrade-compatible
   private stable var postCategoryEntries : [(Nat, Text)] = [];
+  /// Featured flag side map (do not change Post type)
+  private stable var postFeaturedEntries : [(Nat, Bool)] = [];
+  /// Optional human display name (not a UserProfile field; not a URL handle)
+  private stable var displayNameEntries : [(Principal, Text)] = [];
   private stable var followedCategoriesEntries : [(Principal, [Text])] = [];
   /// Users whose site is detached from factory: posts only for self + social followers (not global/public feed).
   private stable var networkPrivateEntries : [(Principal, Bool)] = [];
@@ -714,6 +718,10 @@ persistent actor Ice {
   private transient var usernameIndex = HashMap.HashMap<Text, Principal>(0, Text.equal, Text.hash);
   // postId -> category label
   private transient var postCategories = HashMap.HashMap<Nat, Text>(0, Nat.equal, func (n: Nat) : Nat32 { Nat32.fromNat(n) });
+  // postId -> featured by ICE (master-only)
+  private transient var postFeatured = HashMap.HashMap<Nat, Bool>(0, Nat.equal, func (n: Nat) : Nat32 { Nat32.fromNat(n) });
+  // principal -> optional display name (spaces/caps allowed; handle stays usernameIndex)
+  private transient var displayNames = HashMap.HashMap<Principal, Text>(0, Principal.equal, Principal.hash);
   // user -> categories they follow (for feed filter)
   private transient var followedCategories = HashMap.HashMap<Principal, [Text]>(0, Principal.equal, Principal.hash);
   // true = site detached → not in public/global discovery feeds
@@ -721,10 +729,13 @@ persistent actor Ice {
   private transient var notifications = HashMap.HashMap<Principal, [Notification]>(0, Principal.equal, Principal.hash);
   private transient var masterContacts : [MasterContact] = [];
 
-  // Valid post categories (fixed list)
-  private let VALID_CATEGORIES : [Text] = [
-    "General", "Tech", "Crypto", "Life", "Ideas", "News", "Art", "Sports", "Questions", "Random"
+  // Valid post categories (fixed list). stable var + postupgrade refresh so list edits apply.
+  private stable var VALID_CATEGORIES : [Text] = [
+    "General", "Tech", "Crypto", "Life", "Ideas", "News", "Art", "Sports", "Questions", "Random", "Product"
   ];
+  /// Master may feature only these categories (politics/price talk = moderation, not NLP).
+  /// transient: must not persist across upgrades or code edits to the allow-list would be ignored.
+  private transient let FEATURE_ALLOW_CATEGORIES : [Text] = ["General", "Ideas", "Product"];
   private let DEFAULT_CATEGORY : Text = "General";
 
   private func natHash(n : Nat) : Nat32 { Nat32.fromNat(n) };
@@ -753,6 +764,8 @@ persistent actor Ice {
     postLoversEntries := Iter.toArray(postLovers.entries());
     usernameIndexEntries := Iter.toArray(usernameIndex.entries());
     postCategoryEntries := Iter.toArray(postCategories.entries());
+    postFeaturedEntries := Iter.toArray(postFeatured.entries());
+    displayNameEntries := Iter.toArray(displayNames.entries());
     followedCategoriesEntries := Iter.toArray(followedCategories.entries());
     networkPrivateEntries := Iter.toArray(networkPrivate.entries());
     notificationEntries := Iter.toArray(notifications.entries());
@@ -852,6 +865,12 @@ persistent actor Ice {
     postCategories := HashMap.fromIter<Nat, Text>(
       postCategoryEntries.vals(), postCategoryEntries.size(), Nat.equal, natHash
     );
+    postFeatured := HashMap.fromIter<Nat, Bool>(
+      postFeaturedEntries.vals(), postFeaturedEntries.size(), Nat.equal, natHash
+    );
+    displayNames := HashMap.fromIter<Principal, Text>(
+      displayNameEntries.vals(), displayNameEntries.size(), Principal.equal, Principal.hash
+    );
     followedCategories := HashMap.fromIter<Principal, [Text]>(
       followedCategoriesEntries.vals(), followedCategoriesEntries.size(), Principal.equal, Principal.hash
     );
@@ -885,8 +904,14 @@ persistent actor Ice {
     masterContactEntries := [];
     usernameIndexEntries := [];
     postCategoryEntries := [];
+    postFeaturedEntries := [];
+    displayNameEntries := [];
     followedCategoriesEntries := [];
     networkPrivateEntries := [];
+    // Refresh category list from code (stable var carries old value across upgrades otherwise).
+    VALID_CATEGORIES := [
+      "General", "Tech", "Crypto", "Life", "Ideas", "News", "Art", "Sports", "Questions", "Random", "Product"
+    ];
     // Legacy stables kept for upgrade layout (referral / packs / tip-unlock).
     ignore REFERRAL_REWARD_THRESHOLD;
     ignore tiers;
@@ -1000,12 +1025,65 @@ persistent actor Ice {
   };
 
   private func displayNameOf(p : Principal) : Text {
+    switch (displayNames.get(p)) {
+      case (?dn) {
+        if (Text.size(dn) > 0) { return dn };
+      };
+      case null {};
+    };
     switch (userProfiles.get(p)) {
       case (?pr) {
         if (Text.size(pr.username) > 0) { pr.username } else { Principal.toText(p) }
       };
       case null { Principal.toText(p) };
     }
+  };
+
+  private func isFeatureAllowCategory(cat : Text) : Bool {
+    for (c in FEATURE_ALLOW_CATEGORIES.vals()) {
+      if (c == cat) { return true };
+    };
+    false
+  };
+
+  private func isPostFeaturedFlag(postId : Nat) : Bool {
+    switch (postFeatured.get(postId)) {
+      case (?true) { true };
+      case _ { false };
+    }
+  };
+
+  /// Human display name: letters/digits/spaces/./-/' ; length 1-40 after trim; no controls/ZW*.
+  private func validateDisplayName(name : Text) : ?Text {
+    let trimmed = Text.trim(name, #char ' ');
+    let n = Text.size(trimmed);
+    if (n == 0) { return null }; // empty means clear — caller handles
+    if (n > 40) { return ?"Display name must be 1–40 characters" };
+    for (c in trimmed.chars()) {
+      let code = Char.toNat32(c);
+      // Controls + DEL
+      if (code < 32 or code == 127) {
+        return ?"Display name cannot include control characters";
+      };
+      // Zero-width / BOM / word-joiner
+      if (
+        code == 0x200B or code == 0x200C or code == 0x200D or
+        code == 0xFEFF or code == 0x2060 or code == 0x180E
+      ) {
+        return ?"Display name cannot include invisible characters";
+      };
+      let ok =
+        Char.isAlphabetic(c) or
+        Char.isDigit(c) or
+        c == ' ' or
+        c == '.' or
+        c == '-' or
+        c == ''';
+      if (not ok) {
+        return ?"Display name may use letters, numbers, spaces, periods, hyphens, and apostrophes only";
+      };
+    };
+    null
   };
 
   /// Push in-app notification to `to` (no-op if self or anonymous). Newest first, capped.
@@ -1818,6 +1896,7 @@ persistent actor Ice {
       case (?pr) {
         // Keep usernameIndex keys (hold until master releaseHeldUsername)
         userProfiles.delete(user);
+        displayNames.delete(user);
         registeredUsers.delete(user);
         "Deleted profile for " # Principal.toText(user)
           # (if (Text.size(pr.username) > 0) { " (username held: " # pr.username # ")" } else { "" })
@@ -2855,6 +2934,125 @@ persistent actor Ice {
     })
   };
 
+  /// Master: set/clear featured. Featuring requires category in General|Ideas|Product.
+  public shared(msg) func adminSetPostFeatured(postId : Nat, featured : Bool) : async Text {
+    if (not isTrustedMaster(msg.caller)) { return "Not authorized" };
+    switch (posts.get(postId)) {
+      case null { return "Post not found" };
+      case (?p) {
+        if (p.isHidden) { return "Post is hidden" };
+        if (featured) {
+          let cat = lookupPostCategory(postId);
+          if (not isFeatureAllowCategory(cat)) {
+            return "Feature only General, Ideas, or Product posts (set category first)";
+          };
+          postFeatured.put(postId, true);
+          "Featured"
+        } else {
+          postFeatured.delete(postId);
+          "Unfeatured"
+        }
+      };
+    }
+  };
+
+  /// Master: set post category (needed before featuring non-default posts).
+  public shared(msg) func adminSetPostCategory(postId : Nat, category : Text) : async Text {
+    if (not isTrustedMaster(msg.caller)) { return "Not authorized" };
+    switch (posts.get(postId)) {
+      case null { return "Post not found" };
+      case (?_) {
+        if (not isValidCategory(category)) {
+          return "Invalid category";
+        };
+        let cat = normalizeCategory(category);
+        postCategories.put(postId, cat);
+        // If featured but category left the allow-list, drop featured automatically.
+        if (isPostFeaturedFlag(postId) and not isFeatureAllowCategory(cat)) {
+          postFeatured.delete(postId);
+          return "Category updated; featured cleared (category not feature-eligible)";
+        };
+        "Category updated"
+      };
+    }
+  };
+
+  public query func isPostFeatured(postId : Nat) : async Bool {
+    isPostFeaturedFlag(postId)
+  };
+
+  public query func getFeaturedFlagsForPosts(postIds : [Nat]) : async [(Nat, Bool)] {
+    Array.map<Nat, (Nat, Bool)>(postIds, func (id : Nat) : (Nat, Bool) {
+      (id, isPostFeaturedFlag(id))
+    })
+  };
+
+  /// Homepage curation: featured + allow-list category; skips hidden / network-private.
+  public query func getFeaturedPosts(limit : Nat) : async [Post] {
+    let lim = if (limit > 100) { 100 } else { limit };
+    let buf = Buffer.Buffer<Post>(0);
+    var i : Nat = 0;
+    while (i < nextPostId and buf.size() < lim) {
+      let id = nextPostId - 1 - i;
+      switch (posts.get(id)) {
+        case (?p) {
+          if (
+            not p.isHidden and
+            not isNetworkPrivate(p.author) and
+            isPostFeaturedFlag(id) and
+            isFeatureAllowCategory(lookupPostCategory(id))
+          ) {
+            buf.add(p);
+          };
+        };
+        case null {};
+      };
+      i += 1;
+    };
+    Buffer.toArray(buf)
+  };
+
+  /// Optional human display name (not URL handle). Empty clears.
+  public shared(msg) func setDisplayName(name : Text) : async Text {
+    if (Principal.isAnonymous(msg.caller)) { return "Not authenticated" };
+    if (isBannedUser(msg.caller)) { return "You are banned" };
+    if (not isUserRegistered(msg.caller) and not isMaster(msg.caller)) {
+      return "Register first before setting a display name";
+    };
+    let trimmed = Text.trim(name, #char ' ');
+    if (Text.size(trimmed) == 0) {
+      displayNames.delete(msg.caller);
+      return "Display name cleared";
+    };
+    switch (validateDisplayName(trimmed)) {
+      case (?err) { return err };
+      case null {};
+    };
+    displayNames.put(msg.caller, trimmed);
+    "Display name saved"
+  };
+
+  public query func getDisplayName(user : Principal) : async ?Text {
+    displayNames.get(user)
+  };
+
+  public query func getDisplayNames(users : [Principal]) : async [(Principal, Text)] {
+    let lim = if (users.size() > 200) { 200 } else { users.size() };
+    let buf = Buffer.Buffer<(Principal, Text)>(0);
+    var i : Nat = 0;
+    while (i < lim) {
+      let u = users[i];
+      switch (displayNames.get(u)) {
+        case (?dn) {
+          if (Text.size(dn) > 0) { buf.add((u, dn)) };
+        };
+        case null {};
+      };
+      i += 1;
+    };
+    Buffer.toArray(buf)
+  };
+
   /// Save which categories the caller wants to follow for the feed filter
   public shared(msg) func setFollowedCategories(cats : [Text]) : async Text {
     if (Principal.isAnonymous(msg.caller)) { return "Not authenticated" };
@@ -2934,6 +3132,7 @@ persistent actor Ice {
         postLovers.delete(postId);
         reports.delete(postId);
         postCategories.delete(postId);
+        postFeatured.delete(postId);
         // Drop comment index for this post (comment records may remain orphaned)
         postComments.delete(postId);
         "Post deleted"
