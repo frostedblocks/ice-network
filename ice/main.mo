@@ -2708,6 +2708,117 @@ persistent actor Ice {
     { rows = Buffer.toArray(out); total = total; offset = offset }
   };
 
+  /// Master-only: permanently clear every post, comment, and post-keyed side data.
+  /// Traps unless caller isMaster AND confirm == "DELETE ALL POSTS AND COMMENTS".
+  /// No controller or anonymous bypass. Clears live maps and stable *Entries so
+  /// wiped data cannot return on the next upgrade.
+  public shared(msg) func adminWipeAllPostsAndComments(confirm : Text) : async Text {
+    if (not isMaster(msg.caller)) {
+      Debug.trap("adminWipeAllPostsAndComments: master only");
+    };
+    if (confirm != "DELETE ALL POSTS AND COMMENTS") {
+      Debug.trap("adminWipeAllPostsAndComments: confirm phrase mismatch");
+    };
+
+    let deletedPosts = posts.size();
+    let deletedComments = comments.size();
+    let deletedPostCommentLinks = postComments.size();
+    let deletedReports = reports.size();
+    let deletedLikers = postLikers.size();
+    let deletedLovers = postLovers.size();
+    let deletedCategories = postCategories.size();
+    let deletedFeatured = postFeatured.size();
+    let deletedKeywordKeys = keywordIndex.size();
+    let deletedLiteHidden = liteHiddenPostIds.size();
+
+    // Collect wiped ids before clearing so we can scrub post/comment-linked notifs.
+    var wipedPostIds = HashMap.HashMap<Nat, Bool>(deletedPosts, Nat.equal, natHash);
+    for ((pid, _) in posts.entries()) {
+      wipedPostIds.put(pid, true);
+    };
+    var wipedCommentIds = HashMap.HashMap<Nat, Bool>(deletedComments, Nat.equal, natHash);
+    for ((cid, _) in comments.entries()) {
+      wipedCommentIds.put(cid, true);
+    };
+
+    posts := HashMap.HashMap<Nat, Post>(0, Nat.equal, natHash);
+    comments := HashMap.HashMap<Nat, Comment>(0, Nat.equal, natHash);
+    postComments := HashMap.HashMap<Nat, [Nat]>(0, Nat.equal, natHash);
+    reports := HashMap.HashMap<Nat, [Principal]>(0, Nat.equal, natHash);
+    postLikers := HashMap.HashMap<Nat, [Principal]>(0, Nat.equal, natHash);
+    postLovers := HashMap.HashMap<Nat, [Principal]>(0, Nat.equal, natHash);
+    postCategories := HashMap.HashMap<Nat, Text>(0, Nat.equal, natHash);
+    postFeatured := HashMap.HashMap<Nat, Bool>(0, Nat.equal, natHash);
+    keywordIndex := HashMap.HashMap<Text, [Nat]>(0, Text.equal, Text.hash);
+    liteHiddenPostIds := [];
+
+    postsEntries := [];
+    commentsEntries := [];
+    postCommentsEntries := [];
+    reportsEntries := [];
+    postLikersEntries := [];
+    postLoversEntries := [];
+    postCategoryEntries := [];
+    postFeaturedEntries := [];
+    keywordIndexEntries := [];
+
+    nextPostId := 0;
+    nextCommentId := 0;
+
+    // Drop post/comment-linked notifications; keep tip / payment / contact / follow.
+    func keepNotifKind(kind : Text) : Bool {
+      kind == "tip" or kind == "payment" or kind == "contact" or kind == "follow"
+    };
+    func dropNotifKind(kind : Text) : Bool {
+      kind == "post" or kind == "comment" or kind == "like" or kind == "love"
+        or kind == "report" or kind == "featured"
+    };
+    func shouldDropNotif(n : Notification) : Bool {
+      if (keepNotifKind(n.kind)) { return false };
+      if (dropNotifKind(n.kind)) { return true };
+      switch (wipedPostIds.get(n.refId)) {
+        case (?_) { return true };
+        case null {};
+      };
+      switch (wipedCommentIds.get(n.refId)) {
+        case (?_) { return true };
+        case null {};
+      };
+      false
+    };
+
+    var removedNotifs : Nat = 0;
+    var nextNotifs = HashMap.HashMap<Principal, [Notification]>(0, Principal.equal, Principal.hash);
+    for ((user, list) in notifications.entries()) {
+      let kept = Array.filter<Notification>(list, func (n : Notification) : Bool {
+        if (shouldDropNotif(n)) {
+          removedNotifs += 1;
+          false
+        } else {
+          true
+        }
+      });
+      if (kept.size() > 0) {
+        nextNotifs.put(user, kept);
+      };
+    };
+    notifications := nextNotifs;
+    notificationEntries := Iter.toArray(notifications.entries());
+
+    "Wiped posts=" # Nat.toText(deletedPosts)
+      # " comments=" # Nat.toText(deletedComments)
+      # " postCommentLinks=" # Nat.toText(deletedPostCommentLinks)
+      # " reports=" # Nat.toText(deletedReports)
+      # " likers=" # Nat.toText(deletedLikers)
+      # " lovers=" # Nat.toText(deletedLovers)
+      # " categories=" # Nat.toText(deletedCategories)
+      # " featured=" # Nat.toText(deletedFeatured)
+      # " keywordKeys=" # Nat.toText(deletedKeywordKeys)
+      # " liteHidden=" # Nat.toText(deletedLiteHidden)
+      # " notificationsRemoved=" # Nat.toText(removedNotifs)
+      # " nextPostId=0 nextCommentId=0"
+  };
+
   /// Block target: store block and remove any follow edge both directions.
   public shared(msg) func block(target : Principal) : async Text {
     if (not requireAuth(msg.caller)) { return "Not authenticated" };

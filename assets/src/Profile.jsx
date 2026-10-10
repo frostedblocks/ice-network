@@ -90,6 +90,10 @@ export default function Profile({ actor, identity, onViewPublicProfile }) {
   const [removeTo, setRemoveTo] = useState("");
   const [removeAmount, setRemoveAmount] = useState("0.01");
   const [hidePostId, setHidePostId] = useState("");
+  const [wipeConfirm, setWipeConfirm] = useState("");
+  const [wipeBusy, setWipeBusy] = useState(false);
+  const [wipeMsg, setWipeMsg] = useState("");
+  const [wipeErr, setWipeErr] = useState("");
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminMsg, setAdminMsg] = useState("");
   const [adminErr, setAdminErr] = useState("");
@@ -339,6 +343,39 @@ export default function Profile({ actor, identity, onViewPublicProfile }) {
       setAdminErr("Invalid principal or request failed.");
     } finally {
       setAdminBusy(false);
+    }
+  };
+
+
+  const handleWipeAllPosts = async (e) => {
+    e.preventDefault();
+    if (!actor) return;
+    if (wipeConfirm !== "DELETE ALL POSTS AND COMMENTS") {
+      setWipeErr('Type DELETE ALL POSTS AND COMMENTS exactly to confirm.');
+      return;
+    }
+    if (!actor.adminWipeAllPostsAndComments) {
+      setWipeErr("adminWipeAllPostsAndComments not available — redeploy ICE.");
+      return;
+    }
+    setWipeBusy(true);
+    setWipeMsg("");
+    setWipeErr("");
+    try {
+      const result = await actor.adminWipeAllPostsAndComments(wipeConfirm);
+      const text =
+        typeof result === "string"
+          ? result
+          : result != null
+            ? String(result)
+            : "Done.";
+      setWipeMsg(text);
+      setWipeConfirm("");
+    } catch (err) {
+      console.error(err);
+      setWipeErr(err?.message || "Wipe failed (master only; check confirm phrase).");
+    } finally {
+      setWipeBusy(false);
     }
   };
 
@@ -658,6 +695,52 @@ export default function Profile({ actor, identity, onViewPublicProfile }) {
               <div className="ice-master-pane">
                 <ModerationQueue actor={actor} />
                 <BanControls actor={actor} />
+
+                <form onSubmit={handleWipeAllPosts} className="ice-profile-card ice-profile-card--nested">
+                  <div className="ice-profile-card-head">
+                    <h3>Danger zone</h3>
+                    <p>
+                      Permanently delete every feed post and comment on ICE.
+                      Profiles, usernames, bans, and sites are kept.
+                    </p>
+                  </div>
+                  <p style={{ margin: "0 0 0.55rem", fontSize: "0.85rem", color: "#FBBF24" }}>
+                    Type <code>DELETE ALL POSTS AND COMMENTS</code> to enable. This cannot be undone
+                    after the canister snapshot is deleted.
+                  </p>
+                  <div className="ice-inline-fields" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+                    <input
+                      type="text"
+                      value={wipeConfirm}
+                      onChange={(e) => setWipeConfirm(e.target.value)}
+                      placeholder="DELETE ALL POSTS AND COMMENTS"
+                      className="ice-input-sm"
+                      autoComplete="off"
+                      spellCheck={false}
+                      style={{ minWidth: "16rem", flex: "1 1 16rem" }}
+                    />
+                    <button
+                      type="submit"
+                      className="ice-btn ice-btn-danger"
+                      disabled={
+                        wipeBusy ||
+                        wipeConfirm !== "DELETE ALL POSTS AND COMMENTS"
+                      }
+                    >
+                      {wipeBusy ? "Wiping…" : "Wipe all posts & comments"}
+                    </button>
+                  </div>
+                  {wipeMsg && (
+                    <p className="ice-admin-msg" style={{ marginTop: "0.55rem" }}>
+                      {wipeMsg}
+                    </p>
+                  )}
+                  {wipeErr && (
+                    <p className="ice-admin-err" style={{ marginTop: "0.55rem" }}>
+                      {wipeErr}
+                    </p>
+                  )}
+                </form>
                 <form onSubmit={handleHidePost} className="ice-profile-card ice-profile-card--nested">
                   <div className="ice-profile-card-head">
                     <h3>Hide post by ID</h3>
