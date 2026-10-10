@@ -1,4 +1,5 @@
 import { Actor, HttpAgent } from "@dfinity/agent";
+import { wrapActorWithClockRetry } from "./icErrors";
 import { idlFactory as iceIdl } from "./declarations/ice/ice.did.js";
 import { idlFactory as factoryIdl } from "./declarations/factory/factory.did.js";
 import { idlFactory as userSiteIdl } from "./declarations/user_site/user_site.did.js";
@@ -39,6 +40,11 @@ function getHost() {
   return "http://127.0.0.1:4943";
 }
 
+/** Create an actor whose methods sync agent time + retry once on clock-skew errors. */
+function makeActor(idl, opts) {
+  return wrapActorWithClockRetry(Actor.createActor(idl, opts), opts.agent);
+}
+
 async function makeAgent(identity) {
   const host = getHost();
   const agent = await HttpAgent.create({
@@ -57,7 +63,7 @@ async function makeAgent(identity) {
 export async function createIceActor(identity) {
   const canisterId = ICE_CANISTER_ID;
   const agent = await makeAgent(identity);
-  return Actor.createActor(iceIdl, { agent, canisterId });
+  return makeActor(iceIdl, { agent, canisterId });
 }
 
 /**
@@ -72,12 +78,12 @@ export async function createAnonymousIceActor() {
   if (network !== "ic") {
     await agent.fetchRootKey();
   }
-  return Actor.createActor(iceIdl, { agent, canisterId });
+  return makeActor(iceIdl, { agent, canisterId });
 }
 
 export async function createFactoryActor(identity) {
   const agent = await makeAgent(identity);
-  return Actor.createActor(factoryIdl, {
+  return makeActor(factoryIdl, {
     agent,
     canisterId: FACTORY_CANISTER_ID,
   });
@@ -91,7 +97,7 @@ export async function createAnonymousFactoryActor() {
   if (network !== "ic") {
     await agent.fetchRootKey();
   }
-  return Actor.createActor(factoryIdl, {
+  return makeActor(factoryIdl, {
     agent,
     canisterId: FACTORY_CANISTER_ID,
   });
@@ -143,7 +149,7 @@ export async function createUserSiteActor(identity, siteCanisterId) {
       : siteCanisterId.toText
       ? siteCanisterId.toText()
       : String(siteCanisterId);
-  return Actor.createActor(userSiteIdl, { agent, canisterId: id });
+  return makeActor(userSiteIdl, { agent, canisterId: id });
 }
 
 /**
@@ -165,7 +171,7 @@ export async function createAnonymousUserSiteActor(siteCanisterId) {
   if (network !== "ic") {
     await agent.fetchRootKey();
   }
-  return Actor.createActor(userSiteIdl, { agent, canisterId: id });
+  return makeActor(userSiteIdl, { agent, canisterId: id });
 }
 
 /** Public hash URL for a personal site (works on assets SPA). */

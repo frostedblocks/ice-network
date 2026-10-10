@@ -56,6 +56,7 @@ import PublicSite from "./PublicSite";
 import PublicUProfile from "./PublicUProfile";
 import PublicProfileNotice from "./PublicProfileNotice";
 import WelcomeNotice from "./WelcomeNotice";
+import BackupPasskeyPrompt from "./BackupPasskeyPrompt";
 import MySite from "./MySite";
 import NotificationBell from "./NotificationBell";
 import FirstLoginChecklist, {
@@ -887,6 +888,7 @@ export default function App() {
 
           {accountReady && actor && identity && (
             <>
+              <BackupPasskeyPrompt identity={identity} />
               <WelcomeNotice actor={actor} identity={identity} />
               <PublicProfileNotice actor={actor} identity={identity} />
             </>
