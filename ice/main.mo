@@ -1111,6 +1111,24 @@ persistent actor Ice {
     Text.toLowercase(name)
   };
 
+  /// First n Unicode scalars (for admin bio snippets).
+  private func textPrefixChars(t : Text, n : Nat) : Text {
+    if (n == 0) { return "" };
+    var i : Nat = 0;
+    var out : Text = "";
+    for (c in t.chars()) {
+      if (i >= n) { return out };
+      out #= Text.fromChar(c);
+      i += 1;
+    };
+    out
+  };
+
+  private func textHasPrefix(hay : Text, needle : Text) : Bool {
+    if (Text.size(needle) == 0) { return true };
+    Text.startsWith(hay, #text needle)
+  };
+
   private func countKeysForUser(user : Principal) : Nat {
     var n : Nat = 0;
     for ((_, owner) in usernameIndex.entries()) {
@@ -2289,6 +2307,33 @@ persistent actor Ice {
     isFreeTier : Bool;
   };
 
+  /// Master accounts index row (read-only admin display).
+  type AdminAccountRow = {
+    user : Principal;
+    username : Text; // current; "" if none / no profile
+    formerNames : [Text]; // held usernameIndex keys != current
+    hasProfile : Bool;
+    isRegistered : Bool;
+    isBanned : Bool;
+    isNetworkPrivate : Bool; // detached
+    postCount : Nat;
+    bioSnippet : Text; // first 80 chars
+  };
+
+  type AdminAccountFilter = {
+    #all;
+    #banned;
+    #networkPrivate;
+    #noUsername;
+    #unregistered;
+  };
+
+  type AdminAccountPage = {
+    rows : [AdminAccountRow];
+    total : Nat;
+    offset : Nat;
+  };
+
   private func buildAdminUserInfo(p : Principal) : AdminUserInfo {
     let profile = userProfiles.get(p);
     let bal = getUserBalance(p);
@@ -2411,6 +2456,177 @@ persistent actor Ice {
     };
 
     Buffer.toArray(buf)
+  };
+
+
+  /// Master-only uncertified query: paginated account index for admin display only.
+  /// Never used for access decisions. Cost is O(posts + profiles + usernameIndex) per call;
+  /// phase 2 should keep a per-author count map if posts exceed ~200k.
+  public query(msg) func adminListAccounts(
+    queryText : Text,
+    filter : AdminAccountFilter,
+    offset : Nat,
+    limit : Nat
+  ) : async AdminAccountPage {
+    if (not isMaster(msg.caller)) {
+      return { rows = []; total = 0; offset = 0 };
+    };
+
+    let lim = if (limit == 0) { 50 } else if (limit > 100) { 100 } else { limit };
+    let qRaw = Text.trim(queryText, #char ' ');
+    let q = Text.toLowercase(qRaw);
+
+    // Universe = profiles ∪ registered(true), deduped.
+    var universe = HashMap.HashMap<Principal, Bool>(0, Principal.equal, Principal.hash);
+    for ((p, _) in userProfiles.entries()) {
+      universe.put(p, true);
+    };
+    for ((p, flag) in registeredUsers.entries()) {
+      if (flag) { universe.put(p, true) };
+    };
+
+    // One pass: principal -> usernameIndex keys (current + held former names).
+    var namesByPrincipal = HashMap.HashMap<Principal, Buffer.Buffer<Text>>(0, Principal.equal, Principal.hash);
+    for ((key, owner) in usernameIndex.entries()) {
+      switch (namesByPrincipal.get(owner)) {
+        case (?buf) { buf.add(key) };
+        case null {
+          let buf = Buffer.Buffer<Text>(2);
+          buf.add(key);
+          namesByPrincipal.put(owner, buf);
+        };
+      };
+    };
+
+    // One pass: non-hidden post counts by author.
+    // Phase 2: keep a per-author count map if posts exceed ~200k.
+    var postCounts = HashMap.HashMap<Principal, Nat>(0, Principal.equal, Principal.hash);
+    for ((_, post) in posts.entries()) {
+      if (not post.isHidden) {
+        let n = switch (postCounts.get(post.author)) {
+          case (?c) { c + 1 };
+          case null { 1 };
+        };
+        postCounts.put(post.author, n);
+      };
+    };
+
+    let matched = Buffer.Buffer<AdminAccountRow>(universe.size());
+
+    label build for ((p, _) in universe.entries()) {
+      let profileOpt = userProfiles.get(p);
+      let hasProfile = switch (profileOpt) { case (?_) { true }; case null { false } };
+      let username = switch (profileOpt) {
+        case (?pr) { pr.username };
+        case null { "" };
+      };
+      let usernameLower = if (Text.size(username) == 0) { "" } else { usernameKey(username) };
+      let bioFull = switch (profileOpt) {
+        case (?pr) { pr.bio };
+        case null { "" };
+      };
+      let isRegisteredFlag = switch (registeredUsers.get(p)) {
+        case (?true) { true };
+        case _ { false };
+      };
+      let bannedFlag = isBannedUser(p);
+      let detached = switch (networkPrivate.get(p)) {
+        case (?true) { true };
+        case _ { false };
+      };
+      let postCount = switch (postCounts.get(p)) {
+        case (?c) { c };
+        case null { 0 };
+      };
+
+      let formerBuf = Buffer.Buffer<Text>(0);
+      switch (namesByPrincipal.get(p)) {
+        case (?buf) {
+          for (k in buf.vals()) {
+            if (Text.size(usernameLower) == 0 or k != usernameLower) {
+              formerBuf.add(k);
+            };
+          };
+        };
+        case null {};
+      };
+      let formerNames = Buffer.toArray(formerBuf);
+
+      // Search: empty = no filter; else username / former-name / principal-text prefix.
+      if (Text.size(q) > 0) {
+        var hit = false;
+        if (Text.size(usernameLower) > 0 and textHasPrefix(usernameLower, q)) {
+          hit := true;
+        };
+        if (not hit) {
+          label fnScan for (fn in formerNames.vals()) {
+            if (textHasPrefix(fn, q)) { hit := true; break fnScan };
+          };
+        };
+        if (not hit) {
+          let pt = Text.toLowercase(Principal.toText(p));
+          if (textHasPrefix(pt, q)) { hit := true };
+        };
+        if (not hit) { continue build };
+      };
+
+      let passes = switch (filter) {
+        case (#all) { true };
+        case (#banned) { bannedFlag };
+        case (#networkPrivate) { detached };
+        case (#noUsername) { Text.size(username) == 0 };
+        case (#unregistered) { not isRegisteredFlag };
+      };
+      if (not passes) { continue build };
+
+      matched.add({
+        user = p;
+        username = username;
+        formerNames = formerNames;
+        hasProfile = hasProfile;
+        isRegistered = isRegisteredFlag;
+        isBanned = bannedFlag;
+        isNetworkPrivate = detached;
+        postCount = postCount;
+        bioSnippet = textPrefixChars(bioFull, 80);
+      });
+    };
+
+    let arr = Buffer.toArray(matched);
+    // Sort by (lowercase username, principal text); empty usernames last.
+    let sorted = Array.sort<AdminAccountRow>(
+      arr,
+      func(a : AdminAccountRow, b : AdminAccountRow) : { #less; #equal; #greater } {
+        let au = usernameKey(a.username);
+        let bu = usernameKey(b.username);
+        let aEmpty = Text.size(au) == 0;
+        let bEmpty = Text.size(bu) == 0;
+        if (aEmpty and not bEmpty) { #greater }
+        else if ((not aEmpty) and bEmpty) { #less }
+        else {
+          let ucmp = Text.compare(au, bu);
+          switch (ucmp) {
+            case (#equal) {
+              Text.compare(Principal.toText(a.user), Principal.toText(b.user))
+            };
+            case other { other };
+          }
+        }
+      }
+    );
+
+    let total = sorted.size();
+    if (offset >= total) {
+      return { rows = []; total = total; offset = offset };
+    };
+    let endExclusive = Nat.min(offset + lim, total);
+    let out = Buffer.Buffer<AdminAccountRow>(lim);
+    var i = offset;
+    label slice while (i < endExclusive) {
+      out.add(sorted[i]);
+      i += 1;
+    };
+    { rows = Buffer.toArray(out); total = total; offset = offset }
   };
 
   /// Block target: store block and remove any follow edge both directions.
