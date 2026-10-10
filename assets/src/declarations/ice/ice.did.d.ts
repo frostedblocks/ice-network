@@ -2,6 +2,27 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export type AdminAccountFilter = { 'all' : null } |
+  { 'noUsername' : null } |
+  { 'banned' : null } |
+  { 'unregistered' : null } |
+  { 'networkPrivate' : null };
+export interface AdminAccountPage {
+  'total' : bigint,
+  'rows' : Array<AdminAccountRow>,
+  'offset' : bigint,
+}
+export interface AdminAccountRow {
+  'postCount' : bigint,
+  'username' : string,
+  'bioSnippet' : string,
+  'formerNames' : Array<string>,
+  'user' : Principal,
+  'hasProfile' : boolean,
+  'isBanned' : boolean,
+  'isNetworkPrivate' : boolean,
+  'isRegistered' : boolean,
+}
 export interface AdminUserInfo {
   'bio' : string,
   'username' : string,
@@ -122,12 +143,21 @@ export interface _SERVICE {
    */
   'adminDebitIcpE8s' : ActorMethod<[Principal, bigint], string>,
   /**
-   * Master: delete a user profile; its username stays held until master releaseHeldUsername.
+   * / Master: delete a user profile; its username stays held until master releaseHeldUsername.
    * / Use for duplicate/legacy II principals (e.g. old founder after owner transfer).
    * / Cannot delete the current owner principal's profile.
    */
   'adminDeleteProfile' : ActorMethod<[Principal], string>,
   'adminHidePost' : ActorMethod<[bigint], boolean>,
+  /**
+   * / Master-only uncertified query: paginated account index for admin display only.
+   * / Never used for access decisions. Cost is O(posts + profiles + usernameIndex) per call;
+   * / phase 2 should keep a per-author count map if posts exceed ~200k.
+   */
+  'adminListAccounts' : ActorMethod<
+    [string, AdminAccountFilter, bigint, bigint],
+    AdminAccountPage
+  >,
   /**
    * / Master: list all profiles (principal + username + bio). For cleanup / audits.
    */
